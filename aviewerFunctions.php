@@ -106,14 +106,8 @@ function aviewer_basicTemplate($data, $title = '') {
 }
 
 function aviewer_processHtml($contents) {
-  global $metaHack, $selectHack, $noscriptDispose; // Yes, I will make this a class so this is less annoying.
-  // A brief rundown so you understand this one:
-  // href= and src= are always used with URLs in HTML tags.
-  // url= is used in special contexts, including custom tags. As always, this one is apt to break thing, but it is required for, say, meta refresh.
-  // as with all of HTML, quotes are optional and text is case insensitive.
-//      $contents = str_replace('>',">\n", $contents); // This fixes a small bug I don't want to document. Long story short, it is, as far as I know, impossible to get both <a href=http://google.com/> and <a href="http://google.com"> supported on the same line without this.
-//      $contents = preg_replace('/ (href|src|url)=("|\'|)(.+)\\2/ei', '" $1=$2" . aviewer_format("$3", "' . addslashes(aviewer_dirPart($urlFile)) . '") . "$2"', $contents); // Yes, this is stupid. I'll work on making it more universal and accurate.=
-//      $contents = preg_replace('/url\((\'|"|)(.+)\\1\)/ei', '"url($1" . aviewer_format("$2", "' . addslashes(aviewer_dirPart($urlFile)) . '") . "$1)"', $contents); // CSS images are handled with this.
+  global $metaHack, $selectHack, $noscriptDispose, $metaDispose; // Yes, I will make this a class so this is less annoying.
+
   $contents = preg_replace('/\<\!--(.*?)--\>/ism', '', $contents); // Get rid of comments (cleans up the DOM at times, making things faster)
 
   if ($noscriptDispose) { // Though far less proper, this is much faster.
@@ -186,7 +180,6 @@ function aviewer_processHtml($contents) {
   }
 
   if ($selectHack) {
-//        $contents = preg_replace('/<option(.*?)value=("|\'|)(.+?)\.(shtml|html|htm|php)\\2(.*?)>/ei', '"<option$1value=$2" . aviewer_format("$3.$4", "' . addslashes(aviewer_dirPart($urlFile)) . '") . "$2$5>"', $contents); // Yes, this is stupid. I'll work on making it more universal and accurate.=
     // Process Option Links
     $optionList = $doc->getElementsByTagName('option');
     for ($i = 0; $i < $optionList->length; $i++) {
