@@ -129,6 +129,14 @@ function aviewer_processHtml($contents) {
   $doc->preserveWhiteSpace = false; // Don't worry about annoying whitespace.
   $doc->loadHTML($contents); // Load the HTML.
 
+/*  if (true) {
+    for ($i = 0; $i < $doc->document->length; $i++) {
+      if ($doc->document->item($i)->hasAttribute('onclick')) {
+        $doc->document->item($i)->setAttribute('onclick', aviewer_processJavascript($doc->document->item($i)->getAttribute('onclick')));
+      }
+    }
+  }*/
+
   // Process LINK tags
   $linkList = $doc->getElementsByTagName('link');
   for ($i = 0; $i < $linkList->length; $i++) {
@@ -154,7 +162,7 @@ function aviewer_processHtml($contents) {
         $scriptDrop[] = $scriptList->item($i);
       }
       else {
-        // TODO: Format Javascript.
+        $scriptList->item($i)->nodeValue = aviewer_processJavascript($scriptList->item($i)->nodeValue);
       }
     }
   }
@@ -179,6 +187,7 @@ function aviewer_processHtml($contents) {
     }
   }
 
+  // Process A, AREA (image map) tags
   foreach (array('a', 'area') AS $ele) {
     $aList = $doc->getElementsByTagName($ele);
     for ($i = 0; $i < $aList->length; $i++) {
@@ -188,8 +197,18 @@ function aviewer_processHtml($contents) {
     }
   }
 
+  // Process BODY, TABLE, TD, and TH tags w/ backgrounds. TABLE, TD & TH do support the background tag, but it was an extension of both Netscape and IE way back, and today most browsers still recognise it and will add a background image as appropriate, so... we have to support it.
+  foreach (array('body', 'table', 'td', 'th') AS $ele) {
+    $aList = $doc->getElementsByTagName($ele);
+    for ($i = 0; $i < $aList->length; $i++) {
+      if ($aList->item($i)->hasAttribute('background')) {
+        $aList->item($i)->setAttribute('background', aviewer_format($aList->item($i)->getAttribute('background')));
+      }
+    }
+  }
+
+  // Process Option Links; some sites will store links in OPTION tags and then sue Javascript to link to them. Thus, if the hack is enabled, we will try to cope.
   if ($selectHack) {
-    // Process Option Links
     $optionList = $doc->getElementsByTagName('option');
     for ($i = 0; $i < $optionList->length; $i++) {
       if ($optionList->item($i)->hasAttribute('value')) {
@@ -201,7 +220,8 @@ function aviewer_processHtml($contents) {
     }
   }
 
-  if ($metaHack) { // This is the meta-refresh hack, which tries to fix meta-refresh headers that may in some cases automatically redirect a page, similar to <a href>. This is hard to work with, and in general sites wishing to achieve this will often implement it instead using headers (which, due to the nature of an archive, will not be transmitted and thus we don't have to worry about modifying them) or using JavaScript (which is never easy to implement, though we will take a shot at it later on [TODO]). An example: <meta http-equiv="Refresh" content="5; URL=http://www.google.com/index">
+  // This is the meta-refresh hack, which tries to fix meta-refresh headers that may in some cases automatically redirect a page, similar to <a href>. This is hard to work with, and in general sites wishing to achieve this will often implement it instead using headers (which, due to the nature of an archive, will not be transmitted and thus we don't have to worry about modifying them) or using JavaScript (which is never easy to implement, though in some cases it still works). An example: <meta http-equiv="Refresh" content="5; URL=http://www.google.com/index">
+  if ($metaHack) {
     $metaList = $doc->getElementsByTagName('meta');
     $metaDrop = array();
 
@@ -227,5 +247,25 @@ function aviewer_processHtml($contents) {
   }
 
   return $doc->saveHTML();
+}
+
+function aviewer_processJavascript($contents) {
+  global $scriptEccentric;
+
+  if ($scriptEccentric) { // Convert anything that appears to be a suspect file. Because of the nature of this, there is a high chance stuff will break if $scriptEccentric is enabled. But, it allows some sites to work properly that otherwise wouldn't.
+    $contents = preg_replace('/(([a-zA-Z0-9\_\-\/]+)\.(php|htm|html|css|js))/ie', 'aviewer_format("$1")', $contents);
+  }
+  else { // Convert strings that contain files ending with suspect extensions.
+    $contents = preg_replace('/("|\')(([a-zA-Z0-9\_\-\/]+)\.(php|htm|html|css|js))\1/ie', 'stripslashes("$1") . aviewer_format("$2") . stripslashes("$1")', $contents);
+  }
+
+  return $contents;
+}
+
+function aviewer_processCSS($contents) {
+  $contents = str_replace(';',";\n", $contents); // Fixes an annoying REGEX quirk below, I won't go into it.
+  $contents = preg_replace('/url\((\'|"|)(.+)\\1\)/ei', '\'url($1\' . aviewer_format("$2") . \'$1)\'', $contents); // CSS images are handled with this.
+
+  return $contents;
 }
 ?>

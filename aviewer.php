@@ -26,6 +26,7 @@ $metaHack = true;
 $metaDispose = true;
 $scriptDispose = true;
 $noscriptDispose = true;
+$scriptEccentric = true;
 
 if ($url === false) { // No URL specified.
   $fileScan = scandir($store); // Read the directory and return each file in the form of an array.
@@ -135,14 +136,12 @@ else { // URL specified
 
         case 'css':
         header('Content-type: text/css');
-        $contents = str_replace(';',";\n", $contents); // This fixes the equivilent CSS bug.
-        $contents = preg_replace('/url\((\'|"|)(.+)\\1\)/ei', '\'url($1\' . aviewer_format("$2") . \'$1)\'', $contents); // CSS images are handled with this.
-        echo $contents;
+        echo aviewer_processCSS($contents);
         break;
 
         case 'js':
         header('Content-type: text/javascript');
-        echo $contents;
+        echo aviewer_processJavascript($contents);
         break;
 
         case 'other':
