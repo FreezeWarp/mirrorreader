@@ -40,7 +40,7 @@ function aviewer_format($file) { // Attempts to format URLs -- absolute or relat
 
   $urlDirectoryLocal = $urlDirectory;
 
-  if (preg_match('/^(http|https|ftp|mailto)\:/i', $file)) { // Domain Included
+  if (preg_match('/^(http|https|ftp|mailto)\:/i', $file)) { // Domain Included; TODO Optimise
 
   }
   elseif (preg_match('/^\//', $file) || !$urlDirectory) { // Absolute Path
@@ -223,26 +223,12 @@ function aviewer_processHtml($contents) {
   // This is the meta-refresh hack, which tries to fix meta-refresh headers that may in some cases automatically redirect a page, similar to <a href>. This is hard to work with, and in general sites wishing to achieve this will often implement it instead using headers (which, due to the nature of an archive, will not be transmitted and thus we don't have to worry about modifying them) or using JavaScript (which is never easy to implement, though in some cases it still works). An example: <meta http-equiv="Refresh" content="5; URL=http://www.google.com/index">
   if ($metaHack) {
     $metaList = $doc->getElementsByTagName('meta');
-    $metaDrop = array();
-
     for ($i = 0; $i < $metaList->length; $i++) {
-      $metaDisposeSkip = false;
-
       if ($metaList->item($i)->hasAttribute('http-equiv') && $metaList->item($i)->hasAttribute('content')) {
         if (strtolower($metaList->item($i)->getAttribute('http-equiv')) == 'refresh') {
           $metaList->item($i)->setAttribute('content', preg_replace('/^(.*)url=([^ ]+)(.*)$/ies', '"$1" . aviewer_format("$2") . "$3"', $metaList->item($i)->getAttribute('content')));
-
-          $metaDisposeSkip = true;
         }
       }
-
-      if ($metaDispose && !$metaDisposeSkip) {
-        $metaDrop[] = $metaList->item($i);
-      }
-    }
-
-    foreach($metaDrop AS $drop) {
-      $drop->parentNode->removeChild($drop);
     }
   }
 

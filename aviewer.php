@@ -20,10 +20,12 @@ $me = 'aviewer.php'; // We should change this to that fun constant I'm too lazy 
 $store = '/home/joseph/Documents/WebOffline/'; // Configuration variable for where the domains are stored offline.
 $cacheStore = '/var/www/cache/'; // Configuration variable for where we'll store uncompressed zip files.
 $homeFile = 'index.html';
+
 $passthru = false;
+
 $selectHack = true;
 $metaHack = true;
-$metaDispose = true;
+
 $scriptDispose = true;
 $noscriptDispose = true;
 $scriptEccentric = true;
@@ -99,32 +101,15 @@ else { // URL specified
       $urlFileExt = $urlFileParts[count($urlFileParts) - 1];
 
       if (!$fileType) {
-
         switch ($urlFileExt) { // Attempt to detect file type by extension.
-          case 'html':
-          case 'htm':
-          case 'shtml':
-          case 'php':
-          $fileType = 'html';
-          break;
-
-          case 'css':
-          $fileType = 'css';
-          break;
-
-          case 'js':
-          $fileType = 'js';
-          break;
-
-          default:
-          $fileType = 'other';
-          break;
+          case 'html': case 'htm': case 'shtml': case 'php': $fileType = 'html'; break;
+          case 'css': $fileType = 'css'; break;
+          case 'js': $fileType = 'js'; break;
+          default: $fileType = 'other'; break;
         }
 
         if ($fileType == 'other') { // Try to autodetect file type by contents.
-          if (preg_match('/^([\ \n]*)(\<\!DOCTYPE|\<html)/i', $contents)) {
-            $fileType = 'html';
-          }
+          if (preg_match('/^([\ \n]*)(\<\!DOCTYPE|\<html)/i', $contents)) { $fileType = 'html'; }
         }
       }
 
@@ -150,7 +135,7 @@ else { // URL specified
         finfo_close($finfo);
 
         header('Content-type: ' . $mimeType);
-  //`      if ($urlFileExt == 'zip') header('Content-Disposition: *; filename="' . filePart($urlFile) . '"');
+        if (in_array($urlFileExt, array('zip', 'tar', 'gz', 'bz2', '7z', 'lzma'))) { header('Content-Disposition: *; filename="' . filePart($urlFile) . '"'); }
 
         echo $contents;
         break;
