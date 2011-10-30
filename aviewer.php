@@ -1,5 +1,20 @@
 <?php
-/* Copyright (c) Joseph T. Parsons */
+/*
+   Copyright 2011 Joseph T. Parsons
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
 /* I did this without the manual; sue me for using regex. */
 /* A basic overview of this file; note that it is still in early alpha and what-not:
 1. We define all functions.
@@ -21,14 +36,13 @@ $store = '/home/joseph/Documents/WebOffline/'; // Configuration variable for whe
 $cacheStore = '/var/www/cache/'; // Configuration variable for where we'll store uncompressed zip files.
 $homeFile = 'index.html';
 
-$passthru = false;
+$passthru = false; // If enabled, when the script encounters a non-stored file, it will instead include the live one from the web. It should be off for testing, but can be enabled to allow, say, paypal and twitter links.
 
-$selectHack = true;
-$metaHack = true;
+$selectHack = true; // If enabled, OPTION tags that contain URLs in their "value" attr will work.
+$metaHack = true; // If enabled, Meta REFRESH will work.
 
-$scriptDispose = true;
-$noscriptDispose = true;
-$scriptEccentric = true;
+$scriptDispose = true; // If enabled, SCRIPTS that do not referrence external files will be dropped. This is useful for getting rid of advertisement and tracking code.
+$scriptEccentric = true; // If enabled, the SCRIPT processing will be far more liberal, replacing anything that looks like a file, even if its not within a string. This allows some sites to work that wouldn't otherwise, but usually it should be off.
 
 if ($url === false) { // No URL specified.
   $fileScan = scandir($store); // Read the directory and return each file in the form of an array.
@@ -48,8 +62,6 @@ else { // URL specified
   $urlFile = preg_replace('/^((http|https|ftp|mailto):(\/\/|)|)(([a-zA-Z0-9\.\-\_]+?)\.(com|net|org|info|us|co\.jp))\/(.+)$/', '\\7', $url); // This is prolly the worst way to do this; TODO
   $urlDirectory = aviewer_dirPart($urlFile);
   $absPath = $cacheStore . $urlDomain . '/' . $urlFile;
-
-//  echo preg_replace('/(([a-zA-Z0-9\.\-\_]+?)\.(com|net|org|info|us|co\.jp))\/(.+)/', '\\1 | \\2 | \\3 | \\4', $url);
 
   if (!aviewer_inCache($urlDomain)) {
     $storeScan = scandir($store); // Scan the directory that stores offline domains.

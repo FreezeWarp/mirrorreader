@@ -1,12 +1,19 @@
 <?php
-/* Copyright (c) Joseph T. Parsons */
+/*
+   Copyright 2011 Joseph T. Parsons
 
-function aviewer_debug($text) { // I dunno what this is.
-//  error_log(print_r($text) . "\n\n", 'log.txt');
-  var_dump($text);
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
 
-  return false;
-}
+   http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
 
 function aviewer_isZip($file) {
   $file = (string) $file; // God, I wish this could be done in the function line.
@@ -114,28 +121,16 @@ function aviewer_basicTemplate($data, $title = '') {
 }
 
 function aviewer_processHtml($contents) {
-  global $metaHack, $selectHack, $scriptDispose, $noscriptDispose, $metaDispose; // Yes, I will make this a class so this is less annoying.
+  global $metaHack, $selectHack, $scriptDispose; // Yes, I will make this a class so this is less annoying.
 
   $contents = preg_replace('/\<\?xml(.+)\?\>/', '', $contents);
   $contents = preg_replace('/\<\!--(.*?)--\>/ism', '', $contents); // Get rid of comments (cleans up the DOM at times, making things faster)
-
-  if ($noscriptDispose) { // Though far less proper, this is much faster.
-    $contents = preg_replace('/\<noscript\>(.*?)<\/noscript\>/ism', '', $contents);
-  }
 
 
   libxml_use_internal_errors(true); // Stop the loadHtml call for spitting out a million errors.
   $doc = new DOMDocument(); // Initiate the PHP DomDocument.
   $doc->preserveWhiteSpace = false; // Don't worry about annoying whitespace.
   $doc->loadHTML($contents); // Load the HTML.
-
-/*  if (true) {
-    for ($i = 0; $i < $doc->document->length; $i++) {
-      if ($doc->document->item($i)->hasAttribute('onclick')) {
-        $doc->document->item($i)->setAttribute('onclick', aviewer_processJavascript($doc->document->item($i)->getAttribute('onclick')));
-      }
-    }
-  }*/
 
   // Process LINK tags
   $linkList = $doc->getElementsByTagName('link');
@@ -166,9 +161,14 @@ function aviewer_processHtml($contents) {
       }
     }
   }
-
   foreach ($scriptDrop AS $drop) {
     $drop->parentNode->removeChild($drop);
+  }
+
+  // Process STYLE tags.
+  $styleList = $doc->getElementsByTagName('style');
+  for ($i = 0; $i < $styleList->length; $i++) {
+    $styleList->item($i)->nodeValue = aviewer_processCSS($styleList->item($i)->nodeValue);
   }
 
   // Process BASE tags.
@@ -238,6 +238,8 @@ function aviewer_processHtml($contents) {
 function aviewer_processJavascript($contents) {
   global $scriptEccentric;
 
+  $contents = preg_replace('/\/\*(.*?)\*\//is', '', $contents); // Removes comments.
+
   if ($scriptEccentric) { // Convert anything that appears to be a suspect file. Because of the nature of this, there is a high chance stuff will break if $scriptEccentric is enabled. But, it allows some sites to work properly that otherwise wouldn't.
     $contents = preg_replace('/(([a-zA-Z0-9\_\-\/]+)\.(php|htm|html|css|js))/ie', 'aviewer_format("$1")', $contents);
   }
@@ -249,6 +251,7 @@ function aviewer_processJavascript($contents) {
 }
 
 function aviewer_processCSS($contents) {
+  $contents = preg_replace('/\/\*(.*?)\*\//is', '', $contents); // Removes comments.
   $contents = str_replace(';',";\n", $contents); // Fixes an annoying REGEX quirk below, I won't go into it.
   $contents = preg_replace('/url\((\'|"|)(.+)\\1\)/ei', '\'url($1\' . aviewer_format("$2") . \'$1)\'', $contents); // CSS images are handled with this.
 
