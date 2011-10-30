@@ -38,6 +38,8 @@ function aviewer_unArchive($text, $maxDepth = 1) { // Unarchive ZIP files, and o
 function aviewer_format($file) { // Attempts to format URLs -- absolute or relative -- so that they can be loaded with the viewer.
   global $me, $urlDomain, $urlDirectory; // Oh, sue me. I'll make it a class or something later.
 
+  $urlDirectoryLocal = $urlDirectory;
+
   if (preg_match('/^(http|https|ftp|mailto)\:/i', $file)) { // Domain Included
 
   }
@@ -45,38 +47,44 @@ function aviewer_format($file) { // Attempts to format URLs -- absolute or relat
     $file = "{$urlDomain}/{$file}";
   }
   else { // Relative Path
-    while (preg_match('/^.\//', $file)) {
-      $file = preg_replace('/^.\/(.+)/', '$1', $file);
+    while (preg_match('/^\.\//', $file)) {
+      $file = preg_replace('/^\.\/(.*)/', '$1', $file);
     }
-    while (preg_match('/^..\//', $file)) {
-      $file = preg_replace('/^..\/(.+)/', '$1', $file);
-      $urlDirectory = aviewer_dirPart($urlDirectory);
+    while (preg_match('/^\.\.\//', $file)) {
+      $file = preg_replace('/^\.\.\/(.*)/', '$1', $file);
+      $urlDirectoryLocal = aviewer_dirPart($urlDirectoryLocal);
     }
 
-    $file = "{$urlDomain}/{$urlDirectory}/{$file}";
+    $file = "{$urlDomain}/{$urlDirectoryLocal}/{$file}";
   }
 
   return "{$me}?url={$file}";
 }
 
-function aviewer_dirPart($file) {
+function aviewer_dirPart($file) { // Obtain the parent directory of a file or directory by analysing its string value. This will not operate on the directory or file itself.
   $fileParts = explode('/', $file);
 
-  foreach ($fileParts AS &$part) {
-    if (!$part) unset($part);
+  foreach ($fileParts AS $id => $part) { // Remove all empty elements.
+    if (!$part) {
+      unset($fileParts[$id]);
+    }
   }
 
-  if (count($fileParts) > 0) {
-    unset($fileParts[count($fileParts) - 1]);
-  }
+  array_pop($fileParts); // Note: Because of the previous foreach loop, the array index may be corrupted (e.g. the array will be {0 = ele, 2 = ele}), thus making array_pop the only possible means of removing the last element of the array (as opposed to the count method that may be faster).
 
   return implode('/', $fileParts);
 }
 
-function aviewer_filePart($file) {
-  $filePieces = explode('/', $file);
+function aviewer_filePart($file) { // Obtain the file or directory without its parent directory by analysing its string value. This will not operate on the directory or file itself.
+  $fileParts = explode('/', $file);
 
-  return $filePieces[count($filePieces) - 1];
+  foreach ($fileParts AS $id => $part) { // Remove all empty elements.
+    if (!$part) {
+      unset($fileParts[$id]);
+    }
+  }
+
+  return array_pop($fileParts); // Note: Because of the previous foreach loop, the array index may be corrupted (e.g. the array will be {0 = ele, 2 = ele}), thus making array_pop the only possible means of removing the last element of the array (as opposed to the count method that may be faster).
 }
 
 function aviewer_isSpecial($file) {
@@ -106,19 +114,20 @@ function aviewer_basicTemplate($data, $title = '') {
 }
 
 function aviewer_processHtml($contents) {
-  global $metaHack, $selectHack, $noscriptDispose, $metaDispose; // Yes, I will make this a class so this is less annoying.
+  global $metaHack, $selectHack, $scriptDispose, $noscriptDispose, $metaDispose; // Yes, I will make this a class so this is less annoying.
 
+  $contents = preg_replace('/\<\?xml(.+)\?\>/', '', $contents);
   $contents = preg_replace('/\<\!--(.*?)--\>/ism', '', $contents); // Get rid of comments (cleans up the DOM at times, making things faster)
 
   if ($noscriptDispose) { // Though far less proper, this is much faster.
     $contents = preg_replace('/\<noscript\>(.*?)<\/noscript\>/ism', '', $contents);
   }
 
-  // w00t! The future! Maybe!
+
   libxml_use_internal_errors(true); // Stop the loadHtml call for spitting out a million errors.
-  $doc = new DOMDocument();
-  $doc->preserveWhiteSpace = false;
-  $doc->loadHTML($contents);
+  $doc = new DOMDocument(); // Initiate the PHP DomDocument.
+  $doc->preserveWhiteSpace = false; // Don't worry about annoying whitespace.
+  $doc->loadHTML($contents); // Load the HTML.
 
   // Process LINK tags
   $linkList = $doc->getElementsByTagName('link');
