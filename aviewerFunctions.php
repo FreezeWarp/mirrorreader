@@ -82,7 +82,6 @@ function aviewer_format($file) { // Attempts to format URLs -- absolute or relat
 
 function aviewer_dirPart($file) { // Obtain the parent directory of a file or directory by analysing its string value. This will not operate on the directory or file itself.
   $fileParts = explode('/', $file);
-
   foreach ($fileParts AS $id => $part) { // Remove all empty elements.
     if (!$part) {
       unset($fileParts[$id]);
@@ -91,7 +90,7 @@ function aviewer_dirPart($file) { // Obtain the parent directory of a file or di
 
   array_pop($fileParts); // Note: Because of the previous foreach loop, the array index may be corrupted (e.g. the array will be {0 = ele, 2 = ele}), thus making array_pop the only possible means of removing the last element of the array (as opposed to the count method that may be faster).
 
-  implode('/', $fileParts);
+  return implode('/', $fileParts);
 }
 
 function aviewer_filePart($file) { // Obtain the file or directory without its parent directory by analysing its string value. This will not operate on the directory or file itself.

@@ -148,7 +148,9 @@ else { // URL specified
         finfo_close($finfo);
 
         header('Content-type: ' . $mimeType);
-        if (in_array($urlFileExt, array('zip', 'tar', 'gz', 'bz2', '7z', 'lzma'))) { header('Content-Disposition: *; filename="' . filePart($urlFile) . '"'); }
+        if (in_array($urlFileExt, array('zip', 'tar', 'gz', 'bz2', '7z', 'lzma'))) {
+          header('Content-Disposition: *; filename="' . filePart($urlFile) . '"');
+        }
 
         echo $contents;
         break;
