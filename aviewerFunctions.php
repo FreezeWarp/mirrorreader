@@ -18,23 +18,15 @@
 function aviewer_isZip($file) {
   $file = (string) $file; // God, I wish this could be done in the function line.
 
-  if (preg_match('/\.zip$/', $file)) { // This is prolly the worst way of doing this (like, duh); TODO
-    return true;
-  }
-  else {
-    return false;
-  }
+  if (preg_match('/\.zip$/', $file)) return true; // This is prolly the worst way of doing this (like, duh); TODO
+  else return false;
 }
 
 function aviewer_stripZip($file) {
   $file = (string) $file; // God, I wish this could be done in the function line.
 
-  if (aviewer_isZip($file)) { // This is prolly the worst way of doing this (like, duh); TODO
-    return preg_replace('/^(.+)\.zip$/', '\\1', $file);
-  }
-  else {
-    return $file;
-  }
+  if (aviewer_isZip($file)) return preg_replace('/^(.+)\.zip$/', '\\1', $file); // This is prolly the worst way of doing this (like, duh); TODO
+  else return $file;
 }
 
 function aviewer_inCache($domain) {
@@ -42,12 +34,8 @@ function aviewer_inCache($domain) {
 
   $fileScan = (array) scandir($cacheStore); // Read the directory and return each file in the form of an array.
 
-  if (in_array($domain, $fileScan)) { // TODO?
-    return true;
-  }
-  else {
-    return false;
-  }
+  if (in_array($domain, $fileScan)) return true; // TODO?
+  else return false;
 }
 
 function aviewer_unArchive($text, $maxDepth = 1) { // Unarchive ZIP files, and optionally recursive into the directories and unzip all zipped files in them. Note that zip files follow these rules: (1) if they contain a singular parent directory, the directory will be igored in the created tree; (2) the directory will be named based on the zip name (e.g. fun.zip = /fun); (3) if a directory exists to match the zip name directory, the file will not be unzipped; (4) the zip name directory must NOT contain non-alphanumeric characters; (5) the original zip will not be deleted; it can still be safely referrenced by files if needed (a zip file is assumed to be downloaded when referrenced in $_GET[url]]
@@ -72,6 +60,14 @@ function aviewer_format($file) { // Attempts to format URLs -- absolute or relat
     while (preg_match('/^\.\.\//', $file)) {
       $file = preg_replace('/^\.\.\/(.*)/', '$1', $file);
       $urlDirectoryLocal = aviewer_dirPart($urlDirectoryLocal);
+    }
+
+    // Encodes URLs that include GET arguments. (PHP5.3 REQUIRED)
+    // TODO: Optimise.
+    if (preg_match('/\.([a-zA-Z]{0,3})\?([a-zA-Z0-9]+)=([a-zA-Z0-9]+)((\&([a-zA-Z0-9]+)=([a-zA-Z0-9]+))+|)/', $file)) { // Note: We do this check since the /e replacement takes quite a while longer. I don't really know why.
+      $file = preg_replace_callback('/\.([a-zA-Z]{0,3})\?([a-zA-Z0-9]+)=([a-zA-Z0-9]+)((\&([a-zA-Z0-9]+)=([a-zA-Z0-9]+))+|)/', function($m) {
+        return urlencode("{$m[2]}={$m[3]}{$m[4]}") . ".{$m[1]}";
+      }, $file);
     }
 
     $file = "{$urlDomain}/{$urlDirectoryLocal}/{$file}";
@@ -106,12 +102,8 @@ function aviewer_filePart($file) { // Obtain the file or directory without its p
 }
 
 function aviewer_isSpecial($file) {
-  if ($file === '.' || $file === '..' || $file === '~') { // Yes, the last one isn't normally used; I have my pointless reasons.
-    return true;
-  }
-  else {
-    return false;
-  }
+  if ($file === '.' || $file === '..' || $file === '~') return true; // Yes, the last one isn't normally used; I have my pointless reasons.
+  else return false;
 }
 
 function aviewer_basicTemplate($data, $title = '') {
@@ -119,13 +111,8 @@ function aviewer_basicTemplate($data, $title = '') {
   <head>
     <title>{$title}</title>
     <style>
-    body {
-      font-family: Ubuntu, sans;
-    }
-    h1 {
-      margin: 0px;
-      padding: 0px;
-    }
+    body { font-family: Ubuntu, sans; }
+    h1 { margin: 0px; padding: 0px; }
     </style>
   </head>
 
@@ -139,7 +126,6 @@ function aviewer_basicTemplate($data, $title = '') {
 function entitiesHackOuter($scriptContent) {
   $scriptContent = preg_replace("/\"(.+)\"/e", '"\"" . entitiesHackInner("$1") . "\""', $scriptContent);
   $scriptContent = preg_replace("/'(.+)'/e", '"\'" . entitiesHackInner("$1") . "\'"', $scriptContent);
-
 
   return $scriptContent;
 }
@@ -286,6 +272,10 @@ function aviewer_processJavascript($contents) {
     $contents = preg_replace('/("|\')(([a-zA-Z0-9\_\-\/]+)\.(php|htm|html|css|js))\1/ie', 'stripslashes("$1") . aviewer_format("$2") . stripslashes("$1")', $contents);
   }
 
+  if (isset($config['jsReplace'])) {
+    $contents = str_replace($config['jsReplace'], '', $contents);
+  }
+
   return $contents; // Return the updated data.
 }
 
@@ -293,6 +283,10 @@ function aviewer_processCSS($contents) {
   $contents = preg_replace('/\/\*(.*?)\*\//is', '', $contents); // Removes comments.
   $contents = str_replace(';',";\n", $contents); // Fixes an annoying REGEX quirk below; I won't go into it.
   $contents = preg_replace('/url\((\'|"|)(.+)\\1\)/ei', '\'url($1\' . aviewer_format("$2") . \'$1)\'', $contents); // CSS images are handled with this.
+
+  if (isset($config['cssReplace'])) {
+    $contents = str_replace($config['cssReplace'], '', $contents);
+  }
 
   return $contents; // Return the updated data.
 }

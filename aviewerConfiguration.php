@@ -7,7 +7,7 @@ $homeFile = 'index.html';
 
 $domainConfiguration = array(
   'default' => array(
-    'passthru' => true, // If enabled, when the script encounters a non-stored file, it will instead include the live one from the web -- say, PayPal and Twitter links.
+    'passthru' => false, // If enabled, when the script encounters a non-stored file, it will instead include the live one from the web -- say, PayPal and Twitter links.
 
     'selectHack' => true, // If enabled, OPTION tags that contain URLs in their "value" attr will work.
     'metaHack' => true, // If enabled, Meta REFRESH will work.
@@ -28,6 +28,20 @@ $domainConfiguration = array(
     'scriptDispose' => false,
     'scriptEccentric' => true,
     'removeExtra' => false,
+  ),
+  
+  'www.psypokes.com' => array(
+    'passthru' => false,
+
+    'selectHack' => true,
+    'metaHack' => false,
+    'badEntitiesHack' => false,
+
+    'scriptDispose' => false,
+    'scriptEccentric' => false,
+    'removeExtra' => false,
+
+    'jsReplace' => 'document.oncontextmenu=new Function("return false");',
   ),
 );
 ?>

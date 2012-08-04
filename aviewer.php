@@ -30,7 +30,7 @@ require('aviewerFunctions.php');
 error_reporting(E_ALL);
 $data = '';
 
-$url = isset($_GET['url']) ? (string) $_GET['url'] : false; // Get the URL to display from GET.
+$url = isset($_GET['url']) ? (string) urldecode($_GET['url']) : false; // Get the URL to display from GET.
 $fileType = isset($_GET['type']) ? (string) $_GET['type'] : false; // Get the URL to display from GET.
 $me = $_SERVER['PHP_SELF']; // This file.
 
@@ -50,17 +50,13 @@ if ($url === false) { // No URL specified.
 
 else { // URL specified
   $urlDomain = preg_replace('/^((http|https|ftp|mailto):(\/\/|)|)(([a-zA-Z0-9\.\-\_]+?)\.(com|net|org|info|us|co\.jp))\/(.+)$/', '\\4', $url); // This is prolly the worst way to do this; TODO
-  $urlFile = preg_replace('/^((http|https|ftp|mailto):(\/\/|)|)(([a-zA-Z0-9\.\-\_]+?)\.(com|net|org|info|us|co\.jp))\/(.+)$/', '\\7', $url); // This is prolly the worst way to do this; TODO
+  $urlFile = preg_replace('/^((http|https|ftp|mailto):(\/\/|)|)(([a-zA-Z0-9\.\-\_\?\&\=]+?)\.(com|net|org|info|us|co\.jp))\/(.+)$/', '\\7', $url); // This is prolly the worst way to do this; TODO
   $urlDirectory = aviewer_dirPart($urlFile);
   $absPath = $cacheStore . $urlDomain . '/' . $urlFile;
 
   // Get proper configuration.
-  if (isset($domainConfiguration[$urlDomain])) {
-    $config = $domainConfiguration[$urlDomain];
-  }
-  else {
-    $config = $domainConfiguration['default'];
-  }
+  if (isset($domainConfiguration[$urlDomain])) $config = $domainConfiguration[$urlDomain];
+  else $config = $domainConfiguration['default'];
 
   if (!aviewer_inCache($urlDomain)) {
     $storeScan = scandir($store); // Scan the directory that stores offline domains.
@@ -72,9 +68,7 @@ else { // URL specified
 
     }
     else { // The domain isn't in the store.
-      if ($config['passthru']) {
-        header('Location: ' . $url);
-      }
+      if ($config['passthru']) header('Location: ' . $url);
       else {
         if (!$_SERVER['HTTP_REFERER']) {
           $data = 'Domain not found: "' . $urlDomain . '"';
@@ -121,36 +115,22 @@ else { // URL specified
           default: $fileType = 'other'; break;
         }
 
-        if ($fileType == 'other') { // Try to autodetect file type by contents.
-          if (preg_match('/^([\ \n]*)(\<\!DOCTYPE|\<html)/i', $contents)) { $fileType = 'html'; }
+        if ($fileType == 'other') {
+          if (preg_match('/^([\ \n]*)(\<\!DOCTYPE|\<html)/i', $contents)) $fileType = 'html';
         }
       }
 
       switch ($fileType) {
-        case 'html':
-        header('Content-type: text/html');
-        echo aviewer_processHtml($contents);
-        break;
-
-        case 'css':
-        header('Content-type: text/css');
-        echo aviewer_processCSS($contents);
-        break;
-
-        case 'js':
-        header('Content-type: text/javascript');
-        echo aviewer_processJavascript($contents);
-        break;
-
+        case 'html': header('Content-type: text/html');       echo aviewer_processHtml($contents);       break;
+        case 'css':  header('Content-type: text/css');        echo aviewer_processCSS($contents);        break;
+        case 'js':   header('Content-type: text/javascript'); echo aviewer_processJavascript($contents); break;
         case 'other':
         $finfo = finfo_open(FILEINFO_MIME_TYPE); // return mime type ala mimetype extension
         $mimeType = finfo_file($finfo, $absPath);
         finfo_close($finfo);
 
         header('Content-type: ' . $mimeType);
-        if (in_array($urlFileExt, array('zip', 'tar', 'gz', 'bz2', '7z', 'lzma'))) {
-          header('Content-Disposition: *; filename="' . filePart($urlFile) . '"');
-        }
+        if (in_array($urlFileExt, array('zip', 'tar', 'gz', 'bz2', '7z', 'lzma'))) header('Content-Disposition: *; filename="' . filePart($urlFile) . '"');
 
         echo $contents;
         break;
@@ -159,7 +139,7 @@ else { // URL specified
     else {
       if (!$_SERVER['HTTP_REFERER']) {
         $data = 'File not found: "' . $absPath . '"';
-        //aviewer_basicTemplate($data);
+        aviewer_basicTemplate($data);
       }
 
       die();
