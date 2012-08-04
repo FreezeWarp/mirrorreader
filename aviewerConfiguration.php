@@ -38,7 +38,7 @@ $domainConfiguration = array(
     'badEntitiesHack' => false,
 
     'scriptDispose' => false,
-    'scriptEccentric' => false,
+    'scriptEccentric' => true,
     'removeExtra' => false,
 
     'jsReplace' => 'document.oncontextmenu=new Function("return false");',
