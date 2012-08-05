@@ -25,7 +25,7 @@ $domainConfiguration = array(
     'metaHack' => true,
     'badEntitiesHack' => true,
 
-    'scriptDispose' => false,
+    'scriptDispose' => true,
     'scriptEccentric' => true,
     'removeExtra' => false,
   ),
