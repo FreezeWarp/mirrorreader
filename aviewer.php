@@ -45,10 +45,12 @@ if ($url === false) { // No URL specified.
 
   foreach ($fileScan AS $domain) { // List each of the stored domains.
     if (aviewer_isSpecial($domain)) continue; // Don't show ".", "..", etc.
+    
+    if (is_dir("{$store}/{$domain}") || substr($domain, -3, 3) == 'zip') { // Only show ZIPed files and directories.
+      $domainNoZip = aviewer_stripZip($domain); // Domains can be zipped initially, so remove them if needed.
 
-    $domainNoZip = aviewer_stripZip($domain); // Domains can be zipped initially, so remove them if needed.
-
-    echo "<a href=\"{$me}?url={$domainNoZip}/{$homeFile}\">{$domainNoZip}</a><br />";
+      echo "<a href=\"{$me}?url={$domainNoZip}/{$homeFile}\">{$domainNoZip}</a><br />";
+    }
   }
 }
 
@@ -68,17 +70,23 @@ else { // URL specified
 
   if (!aviewer_inCache($urlDomain)) {
     $storeScan = scandir($store); // Scan the directory that stores offline domains.
-
     if (in_array($urlDomain, $storeScan)) { // Check to see if the domain is in the store.
       symlink("{$store}/{$urlDomain}", "{$cacheStore}/{$urlDomain}");
     }
     elseif (in_array($urlDomain . '.zip', $storeScan)) {
-
+      $zip = new ZipArchive;
+      if ($zip->open("{$store}/{$urlDomain}.zip") === TRUE) {
+        $zip->extractTo("{$cacheStore}");
+        $zip->close();
+      }
+      else {
+        die('Zip Extraction Failed.');
+      }
     }
     else { // The domain isn't in the store.
       if ($config['passthru'] || $_GET['passthru']) {
-        //header('Location: ' . $url); // Note: This redirects to the originally embedded URL (thus, we aren't touching it at all).
-        die('Redirecting.');
+        header('Location: ' . $url); // Note: This redirects to the originally embedded URL (thus, we aren't touching it at all).
+        die("<a href=\"$url\">Redirecting.</a>");
       }
       else {
         if (!$_SERVER['HTTP_REFERER']) {
@@ -99,15 +107,15 @@ else { // URL specified
       if (strpos($urlDomain . $urlFile, $find) === 0) {
         $newLocation = str_replace($find, $replace, $urlDomain . $urlFile);
         header("Location: {$me}?url={$newLocation}");
-        die('Redirecting.');
+        die("<a href=\"{$me}?url={$newLocation}\">Redirecting.</a>");
       }
     }
   }
   
   if (is_dir($absPath)) { // Allow (minimal) directory viewing.
-
     if (is_file("{$absPath}/{$homeFile}")) { // Automatically redirect to the home/index file if it exists in the directory.
       header("Location: {$me}?url={$urlDomain}{$urlFile}/{$homeFile}");
+      die("<a href=\"{$me}?url={$urlDomain}{$urlFile}/{$homeFile}\">Redirecting</a>");
     }
     else {
       $dirFiles = scandir($absPath); // Get all files.
@@ -124,7 +132,6 @@ else { // URL specified
     }
   }
   else {
-
     if (file_exists($absPath)) {
       $contents = file_get_contents($absPath); // Get the file contents.
 
@@ -165,9 +172,9 @@ else { // URL specified
         if (strpos($url, 'http:') === 0 || strpos($url, 'https:') === 0 || strpos($url, 'ftp:') === 0 || strpos($url, 'mailto:') === 0) $redirectUrl = $url; // If none of the main prefixes exist, we will assume the URL passed does not have a prefix, and will append the "http:" prefix to the base URL.
         else $redirectUrl = 'http://' . $urlDomain . $urlFile;
 
-//        header('Location: ' . $redirectUrl);
-        
-        die('Redirecting.');
+        header('Location: ' . $redirectUrl);
+
+        die("<a href=\"$redirectUrl\">Redirecting.</a>");
       }
       else if (!$_SERVER['HTTP_REFERER']) {
         $data = 'File not found: "' . $absPath . '"';
