@@ -18,7 +18,7 @@ $domainConfiguration = array(
     'removeExtra' => false, // This will remove extra comments. In some sites, it will break things, but for the rest it will increase the execution speed of the program.
   ),
 
-  'www.upokecenter.com' => array( // Styles broken
+  'www.upokecenter.com' => array( // Working
     'passthru' => false, // ??
 
     'selectHack' => true,
@@ -41,7 +41,9 @@ $domainConfiguration = array(
     'scriptEccentric' => true,
     'removeExtra' => true,
 
-    'jsReplace' => 'document.oncontextmenu=new Function("return false");', // Removes rightclick disable.
+    'jsReplace' => [
+      'document.oncontextmenu=new Function("return false");' => '', // Removes rightclick disable.
+    ],
   ),
     
   'browsers.garykeith.com' => array( // Working (pulls some external)

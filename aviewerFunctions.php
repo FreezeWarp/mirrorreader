@@ -274,7 +274,7 @@ function aviewer_processJavascript($contents) {
   }
 
   if (isset($config['jsReplace'])) {
-    $contents = str_replace($config['jsReplace'], '', $contents);
+    foreach ($config['jsReplace'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
   }
 
   return $contents; // Return the updated data.
@@ -286,7 +286,7 @@ function aviewer_processCSS($contents) {
   $contents = preg_replace('/url\((\'|"|)(.+)\\1\)/ei', '\'url($1\' . aviewer_format("$2") . \'$1)\'', $contents); // CSS images are handled with this.
 
   if (isset($config['cssReplace'])) {
-    $contents = str_replace($config['cssReplace'], '', $contents);
+    foreach ($config['cssReplace'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
   }
 
   return $contents; // Return the updated data.
