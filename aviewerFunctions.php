@@ -47,17 +47,17 @@ function aviewer_format($file) { // Attempts to format URLs -- absolute or relat
 
   $urlDirectoryLocal = $urlDirectory;
 
-  if (preg_match('/^(http|https|ftp|mailto)\:/i', $file)) { // Domain Included; TODO Optimise
+  if (stripos($file, 'http:') === 0 || stripos($file, 'https:') === 0 || stripos($file, 'mailto:') === 0 || stripos($file, 'ftp:') === 0) { // Domain Included
 
   }
-  elseif (preg_match('/^\//', $file) || !$urlDirectory) { // Absolute Path
+  elseif (strpos($file, '/') === 0 || !$urlDirectory) { // Absolute Path
     $file = "{$urlDomain}/{$file}";
   }
   else { // Relative Path
-    while (preg_match('/^\.\//', $file)) {
+    while (strpos($file, './') === 0) {
       $file = preg_replace('/^\.\/(.*)/', '$1', $file);
     }
-    while (preg_match('/^\.\.\//', $file)) {
+    while (strpos($file, '../') === 0) {
       $file = preg_replace('/^\.\.\/(.*)/', '$1', $file);
       $urlDirectoryLocal = aviewer_dirPart($urlDirectoryLocal);
     }
@@ -196,10 +196,13 @@ function aviewer_processHtml($contents) {
     $styleList->item($i)->nodeValue = aviewer_processCSS($styleList->item($i)->nodeValue);
   }
 
-  // Process BASE tags.
+  // Process BASE tags. (EXPERIMENTAL)
+  // These are processed really strangely from what I've seen. I've only found one case in the wild so far, and the replacment works with it.
   $baseList = $doc->getElementsByTagName('base');
-  for ($i = 0; $i < $scriptList->length; $i++) {
-    // TODO: Change Base (e.g. $urlDirectory)
+  for ($i = 0; $i < $baseList->length; $i++) {    
+    if ($baseList->item($i)->hasAttribute('href')) {
+      $baseList->item($i)->setAttribute('href', aviewer_format($baseList->item($i)->getAttribute('src')));
+    }
   }
 
   // Process IMG, VIDEO, AUDIO, IFRAME tags
