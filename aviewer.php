@@ -24,6 +24,10 @@
   2bi. Check to see if it is defined in the cache. If it is, we get it and display it.
   2bii. If not, we determine whether it stored compressed. If so, we uncompress it, otherwise we link it. */
 
+/* Additionally, a few other thoughts:
+ * Configuration can be set per-domain (it's wonderful), making a greater array of features possible. The configuration directives are subject to change (and passthru in particular will likely be removed.)
+ */
+
 require('aviewerConfiguration.php');
 require('aviewerFunctions.php');
 
@@ -49,8 +53,8 @@ if ($url === false) { // No URL specified.
 }
 
 else { // URL specified
-  $urlDomain = preg_replace('/^((http|https|ftp|mailto):(\/\/|)|)(([a-zA-Z0-9\.\-\_]+?)\.(com|net|org|info|us|co\.jp))\/(.+)$/', '\\4', $url); // This is prolly the worst way to do this; TODO
-  $urlFile = preg_replace('/^((http|https|ftp|mailto):(\/\/|)|)(([a-zA-Z0-9\.\-\_\?\&\=]+?)\.(com|net|org|info|us|co\.jp))\/(.+)$/', '\\7', $url); // This is prolly the worst way to do this; TODO
+  $urlDomain = preg_replace('/^((http|https|ftp|mailto):(\/\/|)|)(([a-zA-Z0-9\.\-\_]+?)\.(com|net|org|info|us|co\.jp))(\/(.*)|)$/', '\\4', $url); // This is prolly the worst way to do this; TODO
+  $urlFile = preg_replace('/^((http|https|ftp|mailto):(\/\/|)|)(([a-zA-Z0-9\.\-\_\?\&\=]+?)\.(com|net|org|info|us|co\.jp))(\/(.*)|)$/', '\\7', $url); // This is prolly the worst way to do this; TODO
   $urlDirectory = aviewer_dirPart($urlFile);
   $absPath = $cacheStore . $urlDomain . '/' . $urlFile;
 
@@ -68,7 +72,7 @@ else { // URL specified
 
     }
     else { // The domain isn't in the store.
-      if ($config['passthru']) header('Location: ' . $url);
+      if ($config['passthru'] || $_GET['passthru']) header('Location: ' . $url);
       else {
         if (!$_SERVER['HTTP_REFERER']) {
           $data = 'Domain not found: "' . $urlDomain . '"';
@@ -137,7 +141,13 @@ else { // URL specified
       }
     }
     else {
-      if (!$_SERVER['HTTP_REFERER']) {
+      if ($config['passthru']) {
+        if (strpos($url, 'http:') === 0 || strpos($url, 'https:') === 0 || strpos($url, 'ftp:') === 0 || strpos($url, 'mailto:') === 0) $redirectUrl = $url; // If none of the main prefixes exist, we will assume the URL passed does not have a prefix, and will append the "http:" prefix to the URL.
+        else $redirectUrl = 'http://' . $url;
+
+        header('Location: ' . $redirectUrl);
+      }
+      else if (!$_SERVER['HTTP_REFERER']) {
         $data = 'File not found: "' . $absPath . '"';
         aviewer_basicTemplate($data);
       }

@@ -43,7 +43,7 @@ function aviewer_unArchive($text, $maxDepth = 1) { // Unarchive ZIP files, and o
 }
 
 function aviewer_format($file) { // Attempts to format URLs -- absolute or relative -- so that they can be loaded with the viewer.
-  global $me, $urlDomain, $urlDirectory; // Oh, sue me. I'll make it a class or something later.
+  global $me, $urlDomain, $urlDirectory, $config; // Oh, sue me. I'll make it a class or something later.
 
   $urlDirectoryLocal = $urlDirectory;
 
@@ -73,7 +73,7 @@ function aviewer_format($file) { // Attempts to format URLs -- absolute or relat
     $file = "{$urlDomain}/{$urlDirectoryLocal}/{$file}";
   }
 
-  return "{$me}?url={$file}";
+  return "{$me}?url={$file}" . ($config['passthru'] ? '&passthru=1' : '');
 }
 
 function aviewer_dirPart($file) { // Obtain the parent directory of a file or directory by analysing its string value. This will not operate on the directory or file itself.

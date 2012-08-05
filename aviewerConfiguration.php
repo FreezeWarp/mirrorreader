@@ -7,7 +7,7 @@ $homeFile = 'index.html';
 
 $domainConfiguration = array(
   'default' => array(
-    'passthru' => false, // If enabled, when the script encounters a non-stored file, it will instead include the live one from the web -- say, PayPal and Twitter links.
+    'passthru' => true, // If enabled, when the script encounters a non-stored file, it will instead include the live one from the web -- say, PayPal and Twitter links.
 
     'selectHack' => true, // If enabled, OPTION tags that contain URLs in their "value" attr will work.
     'metaHack' => true, // If enabled, Meta REFRESH will work.
@@ -19,7 +19,7 @@ $domainConfiguration = array(
   ),
 
   'www.upokecenter.com' => array(
-    'passthru' => true,
+    'passthru' => true, // ??
 
     'selectHack' => true,
     'metaHack' => true,
@@ -31,7 +31,7 @@ $domainConfiguration = array(
   ),
   
   'www.psypokes.com' => array(
-    'passthru' => false,
+    'passthru' => true, // Psypokes Forums
 
     'selectHack' => true,
     'metaHack' => false,
@@ -39,9 +39,57 @@ $domainConfiguration = array(
 
     'scriptDispose' => false,
     'scriptEccentric' => true,
-    'removeExtra' => false,
+    'removeExtra' => true,
 
-    'jsReplace' => 'document.oncontextmenu=new Function("return false");',
+    'jsReplace' => 'document.oncontextmenu=new Function("return false");', // Removes rightclick disable.
   ),
+    
+  'browsers.garykeith.com' => array(
+    'passthru' => true, // ??
+
+    'selectHack' => false,
+    'metaHack' => false,
+    'badEntitiesHack' => false,
+
+    'scriptDispose' => false,
+    'scriptEccentric' => false,
+    'removeExtra' => true,
+  ),
+  
+  'mother3.fobby.net' => array(
+    'passthru' => true, // YT, Sourceforge, etc.
+
+    'selectHack' => false,
+    'metaHack' => false,
+    'badEntitiesHack' => false,
+
+    'scriptDispose' => false,
+    'scriptEccentric' => false,
+    'removeExtra' => true,
+  ),
+    
+  'shrines.rpgclassics.com' => array(
+    'passthru' => false, // YT, Sourceforge, etc.
+
+    'selectHack' => false,
+    'metaHack' => false,
+    'badEntitiesHack' => false,
+
+    'scriptDispose' => false,
+    'scriptEccentric' => false,
+    'removeExtra' => true,
+  ),
+    
+  'themes.rpgclassics.com' => array(
+    'passthru' => false, // No external links present in scan.
+
+    'selectHack' => false,
+    'metaHack' => false,
+    'badEntitiesHack' => false,
+
+    'scriptDispose' => false,
+    'scriptEccentric' => false,
+    'removeExtra' => true,
+  )
 );
 ?>
