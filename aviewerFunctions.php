@@ -18,14 +18,14 @@
 function aviewer_isZip($file) {
   $file = (string) $file; // God, I wish this could be done in the function line.
 
-  if (preg_match('/\.zip$/', $file)) return true; // This is prolly the worst way of doing this (like, duh); TODO
+  if (strpos($file, '.zip') === strlen($file) - 4) return true;
   else return false;
 }
 
 function aviewer_stripZip($file) {
   $file = (string) $file; // God, I wish this could be done in the function line.
 
-  if (aviewer_isZip($file)) return preg_replace('/^(.+)\.zip$/', '\\1', $file); // This is prolly the worst way of doing this (like, duh); TODO
+  if (aviewer_isZip($file)) return substr($file, 0, strlen($file) - 4); // Get all but last four characters (.zip) of the string. 
   else return $file;
 }
 
@@ -139,7 +139,7 @@ function entitiesHackOuter($scriptContent) {
 
 // Replaces "<" and ">".
 function entitiesHackInner($stringContent) {
-  $stringContent = str_replacea(array('<', '>'), array('&lt;', '&gt'), $stringContent);
+  $stringContent = str_replace(array('<', '>'), array('&lt;', '&gt'), $stringContent);
   $stringContent = str_replace('>', '&gt;', $stringContent);
 
   return $stringContent;

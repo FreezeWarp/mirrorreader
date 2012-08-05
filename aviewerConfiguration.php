@@ -21,7 +21,7 @@ $domainConfiguration = array(
      'recognisedExtensions' => ['asp', 'css', 'doc', 'docx', 'htm', 'html', 'js', 'pdf', 'php', 'php4', 'php5', 'rss', 'txt', 'xml']
   ),
 
-  'www.upokecenter.com' => array( // Working
+  'www.upokecenter.com' => array( // Working, Mostly
     'passthru' => false, // ??
 
     'selectHack' => true,
