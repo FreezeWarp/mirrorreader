@@ -44,8 +44,27 @@ function aviewer_unArchive($text, $maxDepth = 1) { // Unarchive ZIP files, and o
 
 function aviewer_format($file) { // Attempts to format URLs -- absolute or relative -- so that they can be loaded with the viewer.
   global $me, $urlDomain, $urlDirectory, $config; // Oh, sue me. I'll make it a class or something later.
+  //return $file;
 
   $urlDirectoryLocal = $urlDirectory;
+  
+  if ($config['getHack']) { return $file;
+    // Encodes URLs that include GET arguments. (PHP5.3 REQUIRED)
+    // TODO: Optimise.
+    if (preg_match('/\.([a-zA-Z]{1,6})\?([a-zA-Z0-9]+)(=([a-zA-Z0-9]+)|)(((\&amp\;|\&)([a-zA-Z0-9\*]+)(=([a-zA-Z0-9]+))|)+|)/', $file)) { // Note: We do this check since the /e replacement takes quite a while longer. I don't really know why.
+      return $file;
+      $file = preg_replace_callback('/\.([a-zA-Z]{1,6})\?([a-zA-Z0-9]+)(=([a-zA-Z0-9]+)|)(((\&amp\;|\&)([a-zA-Z0-9]+)(=([a-zA-Z0-9]+))|)+|)/', function($m) {
+        // $m = [
+        // 1 - one-six letter file extension (no other extensions commonly exist in the wild)
+        // 2 - first GET argument (e.g. "hi" in "lol.txt?hi=mom&bye=dad)
+        // 3 - first GET value, including equals, and possibly empty (e.g. "=mom")
+        // 4 - first GET value, without equals (e.g. "mom")
+        // 5 - remaining string of GET arguments & values, and possibly empty (e.g. "&bye=dad")
+        // 6+ - irrelevant in current usage
+        return urlencode("{$m[2]}" . ($m[3] ?: '') . "{$m[5]}") . ".{$m[1]}";
+      }, $file);
+    }
+  }
 
   if (stripos($file, 'http:') === 0 || stripos($file, 'https:') === 0 || stripos($file, 'mailto:') === 0 || stripos($file, 'ftp:') === 0) { // Domain Included
 
@@ -61,17 +80,9 @@ function aviewer_format($file) { // Attempts to format URLs -- absolute or relat
       $file = preg_replace('/^\.\.\/(.*)/', '$1', $file);
       $urlDirectoryLocal = aviewer_dirPart($urlDirectoryLocal);
     }
-
-    // Encodes URLs that include GET arguments. (PHP5.3 REQUIRED)
-    // TODO: Optimise.
-    if (preg_match('/\.([a-zA-Z]{0,3})\?([a-zA-Z0-9]+)=([a-zA-Z0-9]+)((\&([a-zA-Z0-9]+)=([a-zA-Z0-9]+))+|)/', $file)) { // Note: We do this check since the /e replacement takes quite a while longer. I don't really know why.
-      $file = preg_replace_callback('/\.([a-zA-Z]{0,3})\?([a-zA-Z0-9]+)=([a-zA-Z0-9]+)((\&([a-zA-Z0-9]+)=([a-zA-Z0-9]+))+|)/', function($m) {
-        return urlencode("{$m[2]}={$m[3]}{$m[4]}") . ".{$m[1]}";
-      }, $file);
-    }
-
-    $file = "{$urlDomain}/{$urlDirectoryLocal}/{$file}";
   }
+
+  $file = "{$urlDomain}/{$urlDirectoryLocal}/{$file}";
 
   return "{$me}?url={$file}" . ($config['passthru'] ? '&passthru=1' : '');
 }
@@ -130,7 +141,10 @@ function entitiesHackOuter($scriptContent) {
 
 // Replaces "<" and ">".
 function entitiesHackInner($stringContent) {
-  return str_replace(array('<', '>'), array('&lt;', '&gt;'), $stringContent);
+  $stringContent = str_replacea(array('<', '>'), array('&lt;', '&gt'), $stringContent);
+  $stringContent = str_replace('>', '&gt;', $stringContent);
+
+  return $stringContent;
 }
 
 function aviewer_processHtml($contents) {

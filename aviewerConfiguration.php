@@ -16,6 +16,8 @@ $domainConfiguration = array(
     'scriptDispose' => false, // If enabled, SCRIPTS that are not external will be dropped. This is useful for getting rid of advertisement and tracking code, but should be used with care.
     'scriptEccentric' => false, // If enabled, the SCRIPT processing will be far more liberal, replacing anything that looks like a file, even if its not within a string. This allows some sites to work that wouldn't otherwise, but usually it should be off.
     'removeExtra' => false, // This will remove extra comments. In some sites, it will break things, but for the rest it will increase the execution speed of the program.
+      
+     'getHack' => true, // GET variables will be modified according to the default MirrorWriter pattern if enabled. This is off by default as it causes some slow down and may not be implemented correctly. (It may later be removed from config and turned on by default.)
   ),
 
   'www.upokecenter.com' => array( // Working
@@ -116,6 +118,18 @@ $domainConfiguration = array(
 
     'selectHack' => true,
     'metaHack' => true,
+    'badEntitiesHack' => false,
+
+    'scriptDispose' => false,
+    'scriptEccentric' => false,
+    'removeExtra' => true,
+  ),
+  
+  'iimarck.us' => array( // Working (uses BASE)
+    'passthru' => true,
+
+    'selectHack' => false,
+    'metaHack' => false,
     'badEntitiesHack' => false,
 
     'scriptDispose' => false,
