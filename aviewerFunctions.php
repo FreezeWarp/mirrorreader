@@ -156,7 +156,7 @@ function aviewer_processHtml($contents) {
   if ($config['badEntitiesHack']) { // This is a strange hack that prevents Javascript from being interpretted as part of the HTML DOM. Many sites will only use external scripts or not use entities in their scripts, so we do not want this to be enabled by default.
 //    preg_match_all('/\<script(.*?)\>(.*?)<\/script\>/s',$contents,$return);
 //    print_r($return);
-    $contents = preg_replace('/\<script(.*?)\>(.*?)\<\/script\>/es','"<script$1>" . entitiesHackOuter("$2") . "</script>"',$contents);
+    $contents = preg_replace('/\<script(.*?)\>(.*?)\<\/script\>/es','"<script$1>" . entitiesHackOuter("$2") . "</script>"', $contents);
   }
 
   libxml_use_internal_errors(true); // Stop the loadHtml call from spitting out a million errors.
@@ -186,7 +186,7 @@ function aviewer_processHtml($contents) {
     }
     else {
       if ($config['scriptDispose']) $scriptDrop[] = $scriptList->item($i);
-      else $scriptList->item($i)->nodeValue = aviewer_processJavascript($scriptList->item($i)->nodeValue);
+//      else $scriptList->item($i)->nodeValue = aviewer_processJavascript($scriptList->item($i)->nodeValue);
     }
   }
   foreach ($scriptDrop AS $drop) {

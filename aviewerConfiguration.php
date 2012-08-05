@@ -25,12 +25,12 @@ $domainConfiguration = array(
     'passthru' => false, // ??
 
     'selectHack' => true,
-    'metaHack' => true,
-    'badEntitiesHack' => true,
+    'metaHack' => false,
+    'badEntitiesHack' => false, // MUST be set off for a few of the JavaScripts used.
 
-    'scriptDispose' => true,
-    'scriptEccentric' => true,
-    'removeExtra' => false,
+    'scriptDispose' => false, // MUST be set off for a few of the JavaScripts used.
+    'scriptEccentric' => true, // Required for CSS stylings to work. (note: if turned off, the issue will remain when turned back on unless cookies are cleared)
+    'removeExtra' => true,
   ),
   
   'www.psypokes.com' => array( // Working
