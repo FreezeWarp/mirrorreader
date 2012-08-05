@@ -53,8 +53,12 @@ if ($url === false) { // No URL specified.
 }
 
 else { // URL specified
-  $urlDomain = preg_replace('/^((http|https|ftp|mailto):(\/\/|)|)(([a-zA-Z0-9\.\-\_]+?)\.(com|net|org|info|us|co\.jp))(\/(.*)|)$/', '\\4', $url); // This is prolly the worst way to do this; TODO
-  $urlFile = preg_replace('/^((http|https|ftp|mailto):(\/\/|)|)(([a-zA-Z0-9\.\-\_\?\&\=]+?)\.(com|net|org|info|us|co\.jp))(\/(.*)|)$/', '\\7', $url); // This is prolly the worst way to do this; TODO
+  $urlPrefixless = preg_replace('/^((http|https|ftp|mailto):(\/\/|)|)/', '', $url);
+  while(strpos($urlPrefixless, '//') !== false) $urlPrefixless = str_replace('//', '/', $urlPrefixless); // Get rid of excess slashes.
+
+  $urlDomain = preg_replace('/^(([a-zA-Z0-9\.\-\_]+?)\.(com|net|org|info|us|co\.jp))(\/(.*)|)$/', '\\1', $urlPrefixless); // This is prolly the worst way to do this; TODO
+  $urlFile = preg_replace('/^(([a-zA-Z0-9\.\-\_\?\&\=]+?)\.(com|net|org|info|us|co\.jp))(\/(.*)|)$/', '\\4', $urlPrefixless); // This is prolly the worst way to do this; TODO
+
   $urlDirectory = aviewer_dirPart($urlFile);
   $absPath = $cacheStore . $urlDomain . '/' . $urlFile;
 
@@ -72,7 +76,10 @@ else { // URL specified
 
     }
     else { // The domain isn't in the store.
-      if ($config['passthru'] || $_GET['passthru']) header('Location: ' . $url);
+      if ($config['passthru'] || $_GET['passthru']) {
+        //header('Location: ' . $url); // Note: This redirects to the originally embedded URL (thus, we aren't touching it at all).
+        die('Redirecting.');
+      }
       else {
         if (!$_SERVER['HTTP_REFERER']) {
           $data = 'Domain not found: "' . $urlDomain . '"';
@@ -86,9 +93,21 @@ else { // URL specified
     /* TODO: Uncompress */
   }
 
+  /* Handle $config Redirects */
+  if (isset($config['redirect'])) {
+    foreach ($config['redirect'] AS $find => $replace) {
+      if (strpos($urlDomain . $urlFile, $find) === 0) {
+        $newLocation = str_replace($find, $replace, $urlDomain . $urlFile);
+        header("Location: {$me}?url={$newLocation}");
+        die('Redirecting.');
+      }
+    }
+  }
+  
   if (is_dir($absPath)) { // Allow (minimal) directory viewing.
+
     if (is_file("{$absPath}/{$homeFile}")) { // Automatically redirect to the home/index file if it exists in the directory.
-      header("Location: {$me}?url={$url}/{$homeFile}");
+      header("Location: {$me}?url={$urlDomain}{$urlFile}/{$homeFile}");
     }
     else {
       $dirFiles = scandir($absPath); // Get all files.
@@ -105,6 +124,7 @@ else { // URL specified
     }
   }
   else {
+
     if (file_exists($absPath)) {
       $contents = file_get_contents($absPath); // Get the file contents.
 
@@ -142,10 +162,12 @@ else { // URL specified
     }
     else {
       if ($config['passthru']) {
-        if (strpos($url, 'http:') === 0 || strpos($url, 'https:') === 0 || strpos($url, 'ftp:') === 0 || strpos($url, 'mailto:') === 0) $redirectUrl = $url; // If none of the main prefixes exist, we will assume the URL passed does not have a prefix, and will append the "http:" prefix to the URL.
-        else $redirectUrl = 'http://' . $url;
+        if (strpos($url, 'http:') === 0 || strpos($url, 'https:') === 0 || strpos($url, 'ftp:') === 0 || strpos($url, 'mailto:') === 0) $redirectUrl = $url; // If none of the main prefixes exist, we will assume the URL passed does not have a prefix, and will append the "http:" prefix to the base URL.
+        else $redirectUrl = 'http://' . $urlDomain . $urlFile;
 
-        header('Location: ' . $redirectUrl);
+//        header('Location: ' . $redirectUrl);
+        
+        die('Redirecting.');
       }
       else if (!$_SERVER['HTTP_REFERER']) {
         $data = 'File not found: "' . $absPath . '"';

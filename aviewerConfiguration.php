@@ -7,10 +7,10 @@ $homeFile = 'index.html';
 
 $domainConfiguration = array(
   'default' => array(
-    'passthru' => true, // If enabled, when the script encounters a non-stored file, it will instead include the live one from the web -- say, PayPal and Twitter links.
+    'passthru' => false, // If enabled, when the script encounters a non-stored file, it will instead include the live one from the web -- say, PayPal and Twitter links.
 
-    'selectHack' => true, // If enabled, OPTION tags that contain URLs in their "value" attr will work.
-    'metaHack' => true, // If enabled, Meta REFRESH will work.
+    'selectHack' => false, // If enabled, OPTION tags that contain URLs in their "value" attr will work.
+    'metaHack' => false, // If enabled, Meta REFRESH will work.
     'badEntitiesHack' => false, // If enabled, will attempt to (experimentally) replace problematic characters ("<" and ">") in Javascript strings with appropriate entities. For most sites, this won't pose a problem, and indeed this will break some Javascript. Only try this if Javascript does not seem to work properly.
 
     'scriptDispose' => false, // If enabled, SCRIPTS that are not external will be dropped. This is useful for getting rid of advertisement and tracking code, but should be used with care.
@@ -18,8 +18,8 @@ $domainConfiguration = array(
     'removeExtra' => false, // This will remove extra comments. In some sites, it will break things, but for the rest it will increase the execution speed of the program.
   ),
 
-  'www.upokecenter.com' => array(
-    'passthru' => true, // ??
+  'www.upokecenter.com' => array( // Styles broken
+    'passthru' => false, // ??
 
     'selectHack' => true,
     'metaHack' => true,
@@ -30,7 +30,7 @@ $domainConfiguration = array(
     'removeExtra' => false,
   ),
   
-  'www.psypokes.com' => array(
+  'www.psypokes.com' => array( // Working
     'passthru' => true, // Psypokes Forums
 
     'selectHack' => true,
@@ -44,7 +44,7 @@ $domainConfiguration = array(
     'jsReplace' => 'document.oncontextmenu=new Function("return false");', // Removes rightclick disable.
   ),
     
-  'browsers.garykeith.com' => array(
+  'browsers.garykeith.com' => array( // Working (pulls some external)
     'passthru' => true, // ??
 
     'selectHack' => false,
@@ -56,7 +56,7 @@ $domainConfiguration = array(
     'removeExtra' => true,
   ),
   
-  'mother3.fobby.net' => array(
+  'mother3.fobby.net' => array( // Working
     'passthru' => true, // YT, Sourceforge, etc.
 
     'selectHack' => false,
@@ -78,9 +78,14 @@ $domainConfiguration = array(
     'scriptDispose' => false,
     'scriptEccentric' => false,
     'removeExtra' => true,
+    
+    'redirect' => [
+       'shrines.rpgclassics.com/images/' => 'themes.rpgclassics.com/images/',
+       'shrines.rpgclassics.com/space.gif' => 'http://themes.rpgclassics.com/images/space.gif',
+    ]
   ),
     
-  'themes.rpgclassics.com' => array(
+  'themes.rpgclassics.com' => array( // Image repo
     'passthru' => false, // No external links present in scan.
 
     'selectHack' => false,
@@ -90,6 +95,30 @@ $domainConfiguration = array(
     'scriptDispose' => false,
     'scriptEccentric' => false,
     'removeExtra' => true,
-  )
+  ),
+    
+  'www.spriters-resource.com' => array( // Working
+    'passthru' => false, // Disabled for testing.
+
+    'selectHack' => false,
+    'metaHack' => false,
+    'badEntitiesHack' => false,
+
+    'scriptDispose' => false,
+    'scriptEccentric' => false,
+    'removeExtra' => true,
+  ),
+    
+  'www.serebii.net' => array( // Working
+    'passthru' => false, // Disabled for testing.
+
+    'selectHack' => true,
+    'metaHack' => true,
+    'badEntitiesHack' => false,
+
+    'scriptDispose' => false,
+    'scriptEccentric' => false,
+    'removeExtra' => true,
+  ),
 );
 ?>
