@@ -66,7 +66,7 @@ else { // URL specified
   $absPath = $cacheStore . $urlDomain . '/' . $urlFile;
 
   // Get proper configuration.
-  if (isset($domainConfiguration[$urlDomain])) $config = $domainConfiguration[$urlDomain];
+  if (isset($domainConfiguration[$urlDomain])) $config = array_merge($domainConfiguration['default'], $domainConfiguration[$urlDomain]);
   else $config = $domainConfiguration['default'];
 
   if (!aviewer_inCache($urlDomain)) {

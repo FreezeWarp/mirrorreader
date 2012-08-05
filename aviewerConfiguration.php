@@ -18,6 +18,7 @@ $domainConfiguration = array(
     'removeExtra' => false, // This will remove extra comments. In some sites, it will break things, but for the rest it will increase the execution speed of the program.
       
      'getHack' => true, // GET variables will be modified according to the default MirrorWriter pattern if enabled. This is off by default as it causes some slow down and may not be implemented correctly. (It may later be removed from config and turned on by default.)
+     'recognisedExtensions' => ['asp', 'doc', 'docx', 'htm', 'html', 'pdf', 'php', 'php4', 'php5', 'txt']
   ),
 
   'www.upokecenter.com' => array( // Working
