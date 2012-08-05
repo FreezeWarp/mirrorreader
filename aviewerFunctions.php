@@ -79,9 +79,7 @@ function aviewer_format($file) { // Attempts to format URLs -- absolute or relat
 function aviewer_dirPart($file) { // Obtain the parent directory of a file or directory by analysing its string value. This will not operate on the directory or file itself.
   $fileParts = explode('/', $file);
   foreach ($fileParts AS $id => $part) { // Remove all empty elements.
-    if (!$part) {
-      unset($fileParts[$id]);
-    }
+    if (!$part) unset($fileParts[$id]);
   }
 
   array_pop($fileParts); // Note: Because of the previous foreach loop, the array index may be corrupted (e.g. the array will be {0 = ele, 2 = ele}), thus making array_pop the only possible means of removing the last element of the array (as opposed to the count method that may be faster).
@@ -132,10 +130,7 @@ function entitiesHackOuter($scriptContent) {
 
 // Replaces "<" and ">".
 function entitiesHackInner($stringContent) {
-  $stringContent = str_replace('<', '&lt;', $stringContent);
-  $stringContent = str_replace('>', '&gt;', $stringContent);
-
-  return $stringContent;
+  return str_replace(array('<', '>'), array('&lt;', '&gt;'), $stringContent);
 }
 
 function aviewer_processHtml($contents) {
@@ -146,7 +141,7 @@ function aviewer_processHtml($contents) {
     $contents = preg_replace('/\<\!--(.*?)--\>/ism', '', $contents); // Get rid of comments (cleans up the DOM at times, making things faster). We do not remove commnets if they are a part of JavaScript.
   }
 
-  if ($config['badEntitiesHack']) {
+  if ($config['badEntitiesHack']) { // This is a strange hack that prevents Javascript from being interpretted as part of the HTML DOM. Many sites will only use external scripts or not use entities in their scripts, so we do not want this to be enabled by default.
 //    preg_match_all('/\<script(.*?)\>(.*?)<\/script\>/s',$contents,$return);
 //    print_r($return);
     $contents = preg_replace('/\<script(.*?)\>(.*?)\<\/script\>/es','"<script$1>" . entitiesHackOuter("$2") . "</script>"',$contents);
@@ -178,12 +173,8 @@ function aviewer_processHtml($contents) {
       $scriptList->item($i)->setAttribute('src', aviewer_format($scriptList->item($i)->getAttribute('src')) . '&type=js');
     }
     else {
-      if ($config['scriptDispose']) {
-        $scriptDrop[] = $scriptList->item($i);
-      }
-      else {
-        $scriptList->item($i)->nodeValue = aviewer_processJavascript($scriptList->item($i)->nodeValue);
-      }
+      if ($config['scriptDispose']) $scriptDrop[] = $scriptList->item($i);
+      else $scriptList->item($i)->nodeValue = aviewer_processJavascript($scriptList->item($i)->nodeValue);
     }
   }
   foreach ($scriptDrop AS $drop) {

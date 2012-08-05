@@ -26,6 +26,8 @@
 
 /* Additionally, a few other thoughts:
  * Configuration can be set per-domain (it's wonderful), making a greater array of features possible. The configuration directives are subject to change (and passthru in particular will likely be removed.)
+ * A part of the goal of this is to have a small size, and not be some bloated mess. Ideally, this should never exceed 1,000 lines, sans configuration. As a result, it will be limited in some features.
+ * Finally, it is currently not that well optimised. It's getting there, though. Hopefully, it will support ZIP seeks, use less regex, 
  */
 
 require('aviewerConfiguration.php');
@@ -48,7 +50,6 @@ if ($url === false) { // No URL specified.
     
     if (is_dir("{$store}/{$domain}") || substr($domain, -3, 3) == 'zip') { // Only show ZIPed files and directories.
       $domainNoZip = aviewer_stripZip($domain); // Domains can be zipped initially, so remove them if needed.
-
       echo "<a href=\"{$me}?url={$domainNoZip}/{$homeFile}\">{$domainNoZip}</a><br />";
     }
   }
@@ -119,12 +120,10 @@ else { // URL specified
     }
     else {
       $dirFiles = scandir($absPath); // Get all files.
-
       $data = "<h1>Directory \"{$url}\"</h1><hr />";
 
       foreach ($dirFiles AS $file) { // List each one.
         if (aviewer_isSpecial($file)) continue; // Don't show ".", "..", etc.
-
         $data .= "<a href=\"{$me}?url={$url}/{$file}\">$file</a><br />";
       }
 
@@ -140,15 +139,13 @@ else { // URL specified
 
       if (!$fileType) {
         switch ($urlFileExt) { // Attempt to detect file type by extension.
-          case 'html': case 'htm': case 'shtml': case 'php': $fileType = 'html'; break;
-          case 'css': $fileType = 'css'; break;
-          case 'js': $fileType = 'js'; break;
-          default: $fileType = 'other'; break;
+          case 'html': case 'htm': case 'shtml': case 'php': $fileType = 'html';  break;
+          case 'css':                                        $fileType = 'css';   break;
+          case 'js':                                         $fileType = 'js';    break;
+          default:                                           $fileType = 'other'; break;
         }
 
-        if ($fileType == 'other') {
-          if (preg_match('/^([\ \n]*)(\<\!DOCTYPE|\<html)/i', $contents)) $fileType = 'html';
-        }
+        if ($fileType == 'other' && preg_match('/^([\ \n]*)(\<\!DOCTYPE|\<html)/i', $contents)) $fileType = 'html';
       }
 
       switch ($fileType) {
@@ -173,7 +170,6 @@ else { // URL specified
         else $redirectUrl = 'http://' . $urlDomain . $urlFile;
 
         header('Location: ' . $redirectUrl);
-
         die("<a href=\"$redirectUrl\">Redirecting.</a>");
       }
       else if (!$_SERVER['HTTP_REFERER']) {

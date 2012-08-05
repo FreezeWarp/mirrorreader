@@ -42,7 +42,7 @@ $domainConfiguration = array(
     'removeExtra' => true,
 
     'jsReplace' => [
-      'document.oncontextmenu=new Function("return false");' => '', // Removes rightclick disable.
+      'document.oncontextmenu=new Function("return false");' => '',
     ],
   ),
     
