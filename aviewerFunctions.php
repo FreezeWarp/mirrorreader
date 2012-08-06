@@ -15,6 +15,12 @@
    limitations under the License.
 */
 
+
+/**
+ * Checks if a file is a ZIP file.
+ * @param string $file - The file.
+ * @return boolean - True if the file is a ZIP, false otherwise.
+ */
 function aviewer_isZip($file) {
   $file = (string) $file; // God, I wish this could be done in the function line.
 
@@ -22,6 +28,12 @@ function aviewer_isZip($file) {
   else return false;
 }
 
+
+/**
+ * Removes zip extension from file string.
+ * @param string $file - The file.
+ * @return string - File without zip extension.
+ */
 function aviewer_stripZip($file) {
   $file = (string) $file; // God, I wish this could be done in the function line.
 
@@ -29,6 +41,12 @@ function aviewer_stripZip($file) {
   else return $file;
 }
 
+
+/**
+ * @global type $cacheStore - FS directory where caches are stored.
+ * @param type $domain - The domain to check.
+ * @return boolean - True if in cache, false otherwise.
+ */
 function aviewer_inCache($domain) {
   global $cacheStore;
 
@@ -38,10 +56,16 @@ function aviewer_inCache($domain) {
   else return false;
 }
 
-function aviewer_unArchive($text, $maxDepth = 1) { // Unarchive ZIP files, and optionally recursive into the directories and unzip all zipped files in them. Note that zip files follow these rules: (1) if they contain a singular parent directory, the directory will be igored in the created tree; (2) the directory will be named based on the zip name (e.g. fun.zip = /fun); (3) if a directory exists to match the zip name directory, the file will not be unzipped; (4) the zip name directory must NOT contain non-alphanumeric characters; (5) the original zip will not be deleted; it can still be safely referrenced by files if needed (a zip file is assumed to be downloaded when referrenced in $_GET[url]]
 
-}
-
+/**
+ * Formats a file that is included in an archive to be easily processed by the MirrorReader.
+ * @global string $me - Current executing file.
+ * @global string $urlDomain - The domain of the current archive.
+ * @global string $urlDirectory - The directory we are in in the current archive.
+ * @global string $config - The configuration for the domain.
+ * @param type $file - The file string in the original archive.
+ * @return string - New file that can be queried by aviewer.php.
+ */
 function aviewer_format($file) { // Attempts to format URLs -- absolute or relative -- so that they can be loaded with the viewer.
   global $me, $urlDomain, $urlDirectory, $config; // Oh, sue me. I'll make it a class or something later.
   //return $file;
@@ -87,6 +111,12 @@ function aviewer_format($file) { // Attempts to format URLs -- absolute or relat
   return "{$me}?url={$file}" . ($config['passthru'] ? '&passthru=1' : '');
 }
 
+
+/**
+ * Obtains the directory part of a file string.
+ * @param string $file - The file.
+ * @return string - The file, with only the directory in the string.
+ */
 function aviewer_dirPart($file) { // Obtain the parent directory of a file or directory by analysing its string value. This will not operate on the directory or file itself.
   $fileParts = explode('/', $file);
   foreach ($fileParts AS $id => $part) { // Remove all empty elements.
@@ -98,6 +128,12 @@ function aviewer_dirPart($file) { // Obtain the parent directory of a file or di
   return implode('/', $fileParts);
 }
 
+
+/**
+ * Obtains the file part of a file string.
+ * @param string $file - The file.
+ * @return string - The file, without the directory in the string.
+ */
 function aviewer_filePart($file) { // Obtain the file or directory without its parent directory by analysing its string value. This will not operate on the directory or file itself.
   $fileParts = explode('/', $file);
 
@@ -108,12 +144,20 @@ function aviewer_filePart($file) { // Obtain the file or directory without its p
   return array_pop($fileParts); // Note: Because of the previous foreach loop, the array index may be corrupted (e.g. the array will be {0 = ele, 2 = ele}), thus making array_pop the only possible means of removing the last element of the array (as opposed to the count method that may be faster).
 }
 
+
+/**
+ * Checks if a file is a special file.
+ * @param string $file - The file.
+ * @return boolean - If the file is special, returns true. Otherwise, returns false.
+ */
 function aviewer_isSpecial($file) {
   if ($file === '.' || $file === '..' || $file === '~') return true; // Yes, the last one isn't normally used; I have my pointless reasons.
   else return false;
 }
 
+
 /**
+ * Formats a text string in a template. Consistent UI, yay! (Seeing as this template is very rarely shown, it is very minimal.)
  * @param string $data - The data to be returned as part of a template.
  * @param string $title - The title of the page.
  * @param int $special - If 0, standard template is used. If 1, the end body/html is not included. If 2, only text is returned.
@@ -145,6 +189,9 @@ function aviewer_basicTemplate($data, $title = '', $special = 0) {
 }
 
 
+/**
+ * Attempts to flush the output buffer. This will also output 4K of whitespace, since some browsers will require roughly this much to show the sent output (in fact, I don't know a single browser that doesn't.)
+ */
 function aviewer_flush() {
   // Browsers are bitches, and like to make it hard to send buffers. This helps.
   echo '                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    ';
@@ -153,7 +200,12 @@ function aviewer_flush() {
   ob_flush();
 }
 
-// Replaces "<" and ">" (using entitiesHackInner) if within a string.
+
+/**
+ * Replaces "<" and ">" (using entitiesHackInner) if within a string.
+ * @param string $scriptContent
+ * @return string
+ */
 function entitiesHackOuter($scriptContent) {
   $scriptContent = preg_replace("/\"(.+)\"/e", '"\"" . entitiesHackInner("$1") . "\""', $scriptContent);
   $scriptContent = preg_replace("/'(.+)'/e", '"\'" . entitiesHackInner("$1") . "\'"', $scriptContent);
@@ -161,14 +213,23 @@ function entitiesHackOuter($scriptContent) {
   return $scriptContent;
 }
 
-// Replaces "<" and ">".
-function entitiesHackInner($stringContent) {
-  $stringContent = str_replace(array('<', '>'), array('&lt;', '&gt'), $stringContent);
-  $stringContent = str_replace('>', '&gt;', $stringContent);
 
-  return $stringContent;
+/**
+ * Replaces "<" and ">".with "&lt;" and "&gt;"
+ * @param string $stringContent
+ * @return string
+ */
+function entitiesHackInner($stringContent) {
+  return str_replace(array('<', '>'), array('&lt;', '&gt'), $stringContent);
 }
 
+
+/**
+ * Rewrites HTML. This uses DOMDocument, and can handle most bad HTML. (No guarentees, but no cases have yet been found where it screws up.)
+ * @global string $config
+ * @param string $contents
+ * @return string
+ */
 function aviewer_processHtml($contents) {
   global $config; // Yes, I will make this a class so this is less annoying.
 
@@ -178,8 +239,6 @@ function aviewer_processHtml($contents) {
   }
 
   if ($config['badEntitiesHack']) { // This is a strange hack that prevents Javascript from being interpretted as part of the HTML DOM. Many sites will only use external scripts or not use entities in their scripts, so we do not want this to be enabled by default.
-//    preg_match_all('/\<script(.*?)\>(.*?)<\/script\>/s',$contents,$return);
-//    print_r($return);
     $contents = preg_replace('/\<script(.*?)\>(.*?)\<\/script\>/es','"<script$1>" . entitiesHackOuter("$2") . "</script>"', $contents);
   }
 
@@ -210,7 +269,7 @@ function aviewer_processHtml($contents) {
     }
     else {
       if ($config['scriptDispose']) $scriptDrop[] = $scriptList->item($i);
-//      else $scriptList->item($i)->nodeValue = aviewer_processJavascript($scriptList->item($i)->nodeValue);
+      else $scriptList->item($i)->nodeValue = aviewer_processJavascript($scriptList->item($i)->nodeValue);
     }
   }
   foreach ($scriptDrop AS $drop) {
@@ -290,6 +349,14 @@ function aviewer_processHtml($contents) {
   return $doc->saveHTML(); // Return the updated data.
 }
 
+
+/**
+ * Rewrites Javascript
+ * @global string $config
+ * @global string $urlDomain
+ * @param string $contents
+ * @return string
+ */
 function aviewer_processJavascript($contents) {
   global $config, $urlDomain;
 
@@ -310,6 +377,12 @@ function aviewer_processJavascript($contents) {
   return $contents; // Return the updated data.
 }
 
+
+/**
+ * Process CSS.
+ * @param string $contents
+ * @return string
+ */
 function aviewer_processCSS($contents) {
   $contents = preg_replace('/\/\*(.*?)\*\//is', '', $contents); // Removes comments.
   $contents = str_replace(';',";\n", $contents); // Fixes an annoying REGEX quirk below; I won't go into it.

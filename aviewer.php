@@ -32,11 +32,6 @@
 
 require('aviewerConfiguration.php');
 require('aviewerFunctions.php');
-    @apache_setenv('no-gzip', 1);
-    @ini_set('zlib.output_compression', 0);
-    @ini_set('implicit_flush', 1);
-    for ($i = 0; $i < ob_get_level(); $i++) { ob_end_flush(); }
-    ob_implicit_flush(1);
 error_reporting(E_ALL);
 $data = '';
 
@@ -183,11 +178,8 @@ else { // URL specified
         header('Location: ' . $redirectUrl);
         die(aviewer_basicTemplate("<a href=\"$redirectUrl\">Redirecting.</a>"));
       }
-//      else if (!$_SERVER['HTTP_REFERER']) {
-        echo aviewer_basicTemplate('File not found: "' . $absPath . '"');
-//      }
-
-      die();
+      
+      die(aviewer_basicTemplate('File not found: "' . $absPath . '"'));
     }
   }
 }
