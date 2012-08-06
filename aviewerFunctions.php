@@ -237,7 +237,7 @@ function aviewer_processHtml($contents) {
   if (isset($config['htmlReplacePre'])) {
     foreach ($config['htmlReplacePre'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
   }
-  
+
   if ($config['removeExtra']) {
     $contents = preg_replace('/\<\?xml(.+)\?\>/', '', $contents);
     $contents = preg_replace('/\<\!--(.*?)--\>/ism', '', $contents); // Get rid of comments (cleans up the DOM at times, making things faster). We do not remove commnets if they are a part of JavaScript.
@@ -250,6 +250,8 @@ function aviewer_processHtml($contents) {
   libxml_use_internal_errors(true); // Stop the loadHtml call from spitting out a million errors.
   $doc = new DOMDocument(); // Initiate the PHP DomDocument.
   $doc->preserveWhiteSpace = false; // Don't worry about annoying whitespace.
+  $doc->substituteEntities = false;
+  $doc->formatOutput = false;
   $doc->loadHTML($contents); // Load the HTML.
 
   // Process LINK tags
@@ -274,7 +276,7 @@ function aviewer_processHtml($contents) {
     }
     else {
       if ($config['scriptDispose']) $scriptDrop[] = $scriptList->item($i);
-      else $scriptList->item($i)->nodeValue = aviewer_processJavascript($scriptList->item($i)->nodeValue);
+      else $scriptList->item($i)->nodeValue = htmlentities(aviewer_processJavascript($scriptList->item($i)->nodeValue));
     }
   }
   foreach ($scriptDrop AS $drop) {
@@ -284,7 +286,7 @@ function aviewer_processHtml($contents) {
   // Process STYLE tags.
   $styleList = $doc->getElementsByTagName('style');
   for ($i = 0; $i < $styleList->length; $i++) {
-    $styleList->item($i)->nodeValue = aviewer_processCSS($styleList->item($i)->nodeValue);
+    $styleList->item($i)->nodeValue = htmlentities(aviewer_processCSS($styleList->item($i)->nodeValue));
   }
 
   // Process BASE tags. (EXPERIMENTAL)
@@ -360,13 +362,15 @@ function aviewer_processHtml($contents) {
     foreach($docAll as $node) {
       if ($node->nodeType === XML_ELEMENT_NODE) {
         if ($node->hasAttribute('style')) {
-          $node->setAttribute('style', aviewer_processCSS($node->getAttribute('style')));
+          $node->setAttribute('style', str_replace("\n", '', aviewer_processCSS($node->getAttribute('style'))));
         }
-        if ($node->hasAttribute('script')) {
-          $node->setAttribute('script', aviewer_processJavascript($node->getAttribute('script')));
+        foreach (array('onclick', 'onmouseover', 'onmouseout', 'onfocus', 'onblur', 'onchange', 'onsubmit') as $att) {
+          if ($node->hasAttribute($att)) {
+            $node->setAttribute($att, str_replace("\n", '', aviewer_processJavascript($node->getAttribute($att))));
+          }
         }
       }
-    }die();
+    }
   }
   
   if (isset($config['htmlReplacePost'])) {
@@ -381,7 +385,7 @@ function aviewer_processHtml($contents) {
  * Rewrites Javascript
  * @global string $config
  * @global string $urlDomain
- * @param string $contents
+ * @param string $contents&&
  * @return string
  */
 function aviewer_processJavascript($contents) {
@@ -394,11 +398,15 @@ function aviewer_processJavascript($contents) {
   $contents = preg_replace('/\/\*(.*?)\*\//is', '', $contents); // Removes comments.
 
   if ($config['scriptEccentric']) { // Convert anything that appears to be a suspect file. Because of the nature of this, there is a high chance stuff will break if $scriptEccentric is enabled. But, it allows some sites to work properly that otherwise wouldn't.
-    $contents = preg_replace('/(([a-zA-Z0-9\_\-\/]+)(\.(' . implode('|', $config['recognisedExtensions']) . ')|\/)[^a-zA-Z0-9])/ie', 'aviewer_format("$1")', $contents); // Note that if the extension is followed by a letter or integer, it is possibly a part of a JavaScript property, which we don't want to convert.
+    $contents = preg_replace_callback('/(([a-zA-Z0-9\_\-\/]+)(\.(' . implode('|', $config['recognisedExtensions']) . '))[^a-zA-Z0-9])/i', function($m) {
+      return aviewer_format($m[1]);
+    }, $contents); // Note that if the extension is followed by a letter or integer, it is possibly a part of a JavaScript property, which we don't want to convert.
     $contents = str_replace('http://' . $urlDomain, $_SERVER['PHP_SELF'] . '?url=' . $urlDomain, $contents); // In some cases, the URL may be dropped directly in. This is an unreliable method of trying to replace it with the equvilent aviewer.php script, and is only used with the eccentric method, since this is rarely used when string-dropped.
   }
   else { // Convert strings that contain files ending with suspect extensions.
-    $contents = preg_replace('/("|\')(([a-zA-Z0-9\_\-\/]+)\.(' . implode('|', $config['recognisedExtensions']) . '))\1/ie', 'stripslashes("$1") . aviewer_format("$2") . stripslashes("$1")', $contents);
+    $contents = preg_replace_callback('/("|\')(([a-zA-Z0-9\_\-\/]+)\.(' . implode('|', $config['recognisedExtensions']) . '))\1/i', function($m) {
+      return stripslashes($m[1]) . aviewer_format($m[2]) . stripslashes($m[1]);
+    }, $contents);
   }
 
   if (isset($config['jsReplacePost'])) {
