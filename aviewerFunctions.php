@@ -93,16 +93,17 @@ function aviewer_format($file) { // Attempts to format URLs -- absolute or relat
 
   if (stripos($file, 'http:') === 0 || stripos($file, 'https:') === 0 || stripos($file, 'mailto:') === 0 || stripos($file, 'ftp:') === 0) { // Domain Included
   }
-  elseif (strpos($file, '/') === 0 || !$urlDirectory) { // Absolute Path
+  elseif (strpos($file, '/') === 0) { // Absolute Path
     $file = "{$urlDomain}/{$file}";
   }
-  else { // Relative Path
+  else {
     while (strpos($file, './') === 0) {
       $file = preg_replace('/^\.\/(.*)/', '$1', $file);
     }
     while (strpos($file, '../') === 0) {
       $file = preg_replace('/^\.\.\/(.*)/', '$1', $file);
-      $urlDirectoryLocal = aviewer_dirPart($urlDirectoryLocal);
+      
+      if ($urlDirectoryLocal) $urlDirectoryLocal = aviewer_dirPart($urlDirectoryLocal); // One case has been found where "../" is used at the root level. The browser, as a result, treats it as a "./" instead. ...I had no fricken clue this was even possible.
     }
     
     $file = "{$urlDomain}/{$urlDirectoryLocal}/{$file}";
