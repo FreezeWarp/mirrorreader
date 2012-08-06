@@ -69,6 +69,17 @@ else { // URL specified
   // Get proper configuration.
   if (isset($domainConfiguration[$urlDomain])) $config = array_merge($domainConfiguration['default'], $domainConfiguration[$urlDomain]);
   else $config = $domainConfiguration['default'];
+  
+  /* Handle $config Redirects */
+  if (isset($config['redirect'])) {
+    foreach ($config['redirect'] AS $find => $replace) {
+      if (strpos($urlDomain . $urlFile, $find) === 0) {
+        $newLocation = str_replace($find, $replace, $urlDomain . $urlFile);
+        header("Location: {$me}?url={$newLocation}");
+        die(aviewer_basicTemplate("<a href=\"{$me}?url={$newLocation}\">Redirecting.</a>"));
+      }
+    }
+  }
 
   if (!aviewer_inCache($urlDomain)) {
     $storeScan = scandir($store); // Scan the directory that stores offline domains.
@@ -105,17 +116,6 @@ else { // URL specified
     }
 
     /* TODO: Uncompress */
-  }
-
-  /* Handle $config Redirects */
-  if (isset($config['redirect'])) {
-    foreach ($config['redirect'] AS $find => $replace) {
-      if (strpos($urlDomain . $urlFile, $find) === 0) {
-        $newLocation = str_replace($find, $replace, $urlDomain . $urlFile);
-        header("Location: {$me}?url={$newLocation}");
-        die(aviewer_basicTemplate("<a href=\"{$me}?url={$newLocation}\">Redirecting.</a>"));
-      }
-    }
   }
 
   if (is_dir($absPath)) { // Allow (minimal) directory viewing.

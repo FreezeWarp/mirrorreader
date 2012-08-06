@@ -2,7 +2,7 @@
 $store = '/home/joseph/WebArchives/'; // Configuration variable for where the domains are stored offline.
 $cacheStore = '/var/www/cache/'; // Configuration variable for where we'll store uncompressed zip files and directory symlinks.
 
-/* TODO: Domain-Specific Configuration */
+
 
 $domainConfiguration = array(
   'default' => array(
@@ -17,73 +17,39 @@ $domainConfiguration = array(
     'removeExtra' => false, // This will remove extra comments. In some sites, it will break things, but for the rest it will increase the execution speed of the program.
       
      'getHack' => true, // GET variables will be modified according to the default MirrorWriter pattern if enabled. This is off by default as it causes some slow down and may not be implemented correctly. (It may later be removed from config and turned on by default.)
-     'recognisedExtensions' => ['asp', 'css', 'doc', 'docx', 'htm', 'html', 'js', 'pdf', 'php', 'php4', 'php5', 'rss', 'txt', 'xml'],
-     'homeFile' => 'index.html',
+     'recognisedExtensions' => ['asp', 'css', 'doc', 'docx', 'gif', 'htm', 'html', 'jpeg', 'jpg', 'js', 'pdf', 'php', 'php4', 'php5', 'png', 'rss', 'txt', 'xml'], // List of recognised extensions.
+     'homeFile' => 'index.html', // The "index" file, usually set as a part of MirrorReader's settings.
+      
+     /* Additional Configuration Directives
+      * 'redirect' -- An array in the form of "find => replace" that redirects domains, directories, and files.
+      * 'mirror' -- An array in the form of "mirror" that means all domain lookups under this address are identical.
+      */
   ),
-
-  'www.upokecenter.com' => array( // Working, Mostly
-    'passthru' => false, // ??
-
-    'selectHack' => true,
-    'metaHack' => false,
-    'badEntitiesHack' => false, // MUST be set off for a few of the JavaScripts used.
-
-    'scriptDispose' => false, // MUST be set off for a few of the JavaScripts used.
-    'scriptEccentric' => true, // Required for CSS stylings to work. (note: if turned off, the issue will remain when turned back on unless cookies are cleared)
+    
+  'browsers.garykeith.com' => array( // Working [note: requires passthru=true if using default robots.txt]
     'removeExtra' => true,
   ),
   
-  'www.psypokes.com' => array( // Working
-    'passthru' => true, // Psypokes Forums
-
-    'selectHack' => true,
-    'metaHack' => false,
-    'badEntitiesHack' => false,
-
-    'scriptDispose' => false,
-    'scriptEccentric' => true,
+  'iimarck.us' => array( // Working [note1: uses BASE] [note2: default run fails with duplicate files in i/ directory]
     'removeExtra' => true,
-
-    'jsReplacePost' => [
-      'document.oncontextmenu=new Function("return false");' => '',
-    ],
+  ),
+  
+  'www.lostlevels.org' => array( // Working
+    'mirror' => ['lostlevels.org']
   ),
     
-  'browsers.garykeith.com' => array( // Working (pulls some external)
-    'passthru' => true, // ??
-
-    'selectHack' => false,
-    'metaHack' => false,
-    'badEntitiesHack' => false,
-
-    'scriptDispose' => false,
-    'scriptEccentric' => false,
-    'removeExtra' => true,
+  'mmxz.zophar.net' => array(
+    'scriptEccentric' => true,
   ),
   
   'mother3.fobby.net' => array( // Working
     'passthru' => true, // YT, Sourceforge, etc.
-
-    'selectHack' => false,
-    'metaHack' => false,
-    'badEntitiesHack' => false,
-
-    'scriptDispose' => false,
-    'scriptEccentric' => false,
     'removeExtra' => true,
   ),
     
   'shrines.rpgclassics.com' => array(
     'passthru' => false, // YT, Sourceforge, etc.
-
-    'selectHack' => false,
-    'metaHack' => false,
-    'badEntitiesHack' => false,
-
-    'scriptDispose' => false,
-    'scriptEccentric' => false,
     'removeExtra' => true,
-    
     'redirect' => [
        'shrines.rpgclassics.com/images/' => 'themes.rpgclassics.com/images/',
        'shrines.rpgclassics.com/space.gif' => 'http://themes.rpgclassics.com/images/space.gif',
@@ -92,53 +58,37 @@ $domainConfiguration = array(
     
   'themes.rpgclassics.com' => array( // Image repo
     'passthru' => false, // No external links present in scan.
-
-    'selectHack' => false,
-    'metaHack' => false,
-    'badEntitiesHack' => false,
-
-    'scriptDispose' => false,
-    'scriptEccentric' => false,
-    'removeExtra' => true,
-  ),
-    
-  'www.spriters-resource.com' => array( // Working
-    'passthru' => false, // Disabled for testing.
-
-    'selectHack' => false,
-    'metaHack' => false,
-    'badEntitiesHack' => false,
-
-    'scriptDispose' => false,
-    'scriptEccentric' => false,
     'removeExtra' => true,
   ),
     
   'www.serebii.net' => array( // Working
     'passthru' => false, // Disabled for testing.
-
-    'selectHack' => true,
-    'metaHack' => true,
-    'badEntitiesHack' => false,
-
-    'scriptDispose' => false,
-    'scriptEccentric' => false,
+    'selectHack' => true, // Pokedex, etc
+    'metaHack' => true, // Splash screen
     'removeExtra' => false, // Disabled, as it breaks some older pages.
-      
     'htmlReplacePre' => [
       "\n" . '<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\">' => '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">' // Older pages contain this, which breaks the script.
     ]
   ),
+    
+  'www.spriters-resource.com' => array( // Working [requires xml in recognisedExtensions]
+    'removeExtra' => true,
+  ),
   
-  'iimarck.us' => array( // Working (uses BASE)
-    'passthru' => true,
+  'www.psypokes.com' => array( // Working
+    'passthru' => true, // Psypokes Forums
+    'selectHack' => true, // Pokedex [CONFIRMATION NEEDED]
+    'removeExtra' => true,
+    'jsReplacePost' => [
+      'document.oncontextmenu=new Function("return false");' => '', // Re-enables right click
+    ],
+  ),
 
-    'selectHack' => false,
-    'metaHack' => false,
-    'badEntitiesHack' => false,
-
-    'scriptDispose' => false,
-    'scriptEccentric' => false,
+  'www.upokecenter.com' => array( // Working, Mostly
+    'selectHack' => true,
+    'badEntitiesHack' => false, // MUST be set off for a few of the JavaScripts used.
+    'scriptDispose' => false, // MUST be set off for a few of the JavaScripts used.
+    'scriptEccentric' => true, // Required for CSS stylings to work. (note: if turned off, the issue will remain when turned back on unless cookies are cleared)
     'removeExtra' => true,
   ),
 );

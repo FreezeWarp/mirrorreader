@@ -376,7 +376,7 @@ function aviewer_processJavascript($contents) {
   $contents = preg_replace('/\/\*(.*?)\*\//is', '', $contents); // Removes comments.
 
   if ($config['scriptEccentric']) { // Convert anything that appears to be a suspect file. Because of the nature of this, there is a high chance stuff will break if $scriptEccentric is enabled. But, it allows some sites to work properly that otherwise wouldn't.
-    $contents = preg_replace('/(([a-zA-Z0-9\_\-\/]+)\.(' . implode('|', $config['recognisedExtensions']) . ')[^a-zA-Z0-9])/ie', 'aviewer_format("$1")', $contents); // Note that if the extension is followed by a letter or integer, it is possibly a part of a JavaScript property, which we don't want to convert.
+    $contents = preg_replace('/(([a-zA-Z0-9\_\-\/]+)(\.(' . implode('|', $config['recognisedExtensions']) . ')|\/)[^a-zA-Z0-9])/ie', 'aviewer_format("$1")', $contents); // Note that if the extension is followed by a letter or integer, it is possibly a part of a JavaScript property, which we don't want to convert.
     $contents = str_replace('http://' . $urlDomain, $_SERVER['PHP_SELF'] . '?url=' . $urlDomain, $contents); // In some cases, the URL may be dropped directly in. This is an unreliable method of trying to replace it with the equvilent aviewer.php script, and is only used with the eccentric method, since this is rarely used when string-dropped.
   }
   else { // Convert strings that contain files ending with suspect extensions.
