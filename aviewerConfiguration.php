@@ -42,6 +42,11 @@ $domainConfiguration = array(
     'scriptEccentric' => true,
   ),
   
+  'www.blue-reflections.net' => array(
+    'dirtyAttributes' => true,
+    'scriptEccentric' => true,
+  ),  
+  
   'mother3.fobby.net' => array( // Working
     'passthru' => true, // YT, Sourceforge, etc.
     'removeExtra' => true,

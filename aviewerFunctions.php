@@ -351,6 +351,24 @@ function aviewer_processHtml($contents) {
     }
   }
   
+  if ($config['dirtyAttributes']) { // This is an incredibly horrible config in which we will parse the CSS of every single element in the document. It takes way too long, but the alternative, regex, is too unreliable.
+    $docAll = new RecursiveIteratorIterator(
+      new RecursiveDOMIterator($doc),
+      RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach($docAll as $node) {
+      if ($node->nodeType === XML_ELEMENT_NODE) {
+        if ($node->hasAttribute('style')) {
+          $node->setAttribute('style', aviewer_processCSS($node->getAttribute('style')));
+        }
+        if ($node->hasAttribute('script')) {
+          $node->setAttribute('script', aviewer_processJavascript($node->getAttribute('script')));
+        }
+      }
+    }die();
+  }
+  
   if (isset($config['htmlReplacePost'])) {
     foreach ($config['htmlReplacePost'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
   }
@@ -410,5 +428,36 @@ function aviewer_processCSS($contents) {
   }
 
   return $contents; // Return the updated data.
+}
+
+
+/*
+ * Courtesy of https://github.com/salathe/spl-examples/wiki/RecursiveDOMIterator
+ */
+class RecursiveDOMIterator implements RecursiveIterator
+{
+    protected $_position;
+    protected $_nodeList;
+    public function __construct(DOMNode $domNode)
+    {
+        $this->_position = 0;
+        $this->_nodeList = $domNode->childNodes;
+    }
+    public function getChildren() { return new self($this->current()); }
+    public function key()         { return $this->_position; }
+    public function next()        { $this->_position++; }
+    public function rewind()      { $this->_position = 0; }
+    public function valid()
+    {
+        return $this->_position < $this->_nodeList->length;
+    }
+    public function hasChildren()
+    {
+        return $this->current()->hasChildNodes();
+    }
+    public function current()
+    {
+        return $this->_nodeList->item($this->_position);
+    }
 }
 ?>

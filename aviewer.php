@@ -69,7 +69,7 @@ else { // URL specified
   // Get proper configuration.
   if (isset($domainConfiguration[$urlDomain])) $config = array_merge($domainConfiguration['default'], $domainConfiguration[$urlDomain]);
   else $config = $domainConfiguration['default'];
-  
+
   /* Handle $config Redirects */
   if (isset($config['redirect'])) {
     foreach ($config['redirect'] AS $find => $replace) {
