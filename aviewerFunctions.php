@@ -113,20 +113,44 @@ function aviewer_isSpecial($file) {
   else return false;
 }
 
-function aviewer_basicTemplate($data, $title = '') {
-  echo "<html>
+/**
+ * @param string $data - The data to be returned as part of a template.
+ * @param string $title - The title of the page.
+ * @param int $special - If 0, standard template is used. If 1, the end body/html is not included. If 2, only text is returned.
+ * @return string - Returns data, title formatted in template.
+ */
+function aviewer_basicTemplate($data, $title = '', $special = 0) {
+  $return = '';
+  
+  if ($special === 0 || $special === 1) $return .= "<html>
   <head>
     <title>{$title}</title>
     <style>
     body { font-family: Ubuntu, sans; }
-    h1 { margin: 0px; padding: 0px; }
+    h1 { margin: 0px; padding: 5px; display: block; border-color: gray; border-spacing: 4px; background-color: #9f9f9f; }
     </style>
   </head>
 
   <body>
+    <h1>MirrorReader" . ($title ? ': ' . $title : '') . "</h1><hr />
     {$data}
-  </body>
+";
+  
+  if ($special === 1) $return .= "  </body>
 </html>";
+  
+  if ($special === 2) $return .= $data;
+  
+  return $return;
+}
+
+
+function aviewer_flush() {
+  // Browsers are bitches, and like to make it hard to send buffers. This helps.
+  echo '                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    ';
+
+  flush();
+  ob_flush();
 }
 
 // Replaces "<" and ">" (using entitiesHackInner) if within a string.

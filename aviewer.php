@@ -32,7 +32,11 @@
 
 require('aviewerConfiguration.php');
 require('aviewerFunctions.php');
-
+    @apache_setenv('no-gzip', 1);
+    @ini_set('zlib.output_compression', 0);
+    @ini_set('implicit_flush', 1);
+    for ($i = 0; $i < ob_get_level(); $i++) { ob_end_flush(); }
+    ob_implicit_flush(1);
 error_reporting(E_ALL);
 $data = '';
 
@@ -42,17 +46,19 @@ $me = $_SERVER['PHP_SELF']; // This file.
 
 if ($url === false) { // No URL specified.
   $fileScan = scandir($store); // Read the directory and return each file in the form of an array.
-
-  echo 'Please choose a domain:<br /><br />';
+  
+  $data = '';
 
   foreach ($fileScan AS $domain) { // List each of the stored domains.
     if (aviewer_isSpecial($domain)) continue; // Don't show ".", "..", etc.
     
     if (is_dir("{$store}/{$domain}") || substr($domain, -3, 3) == 'zip') { // Only show ZIPed files and directories.
       $domainNoZip = aviewer_stripZip($domain); // Domains can be zipped initially, so remove them if needed.
-      echo "<a href=\"{$me}?url={$domainNoZip}/{$homeFile}\">{$domainNoZip}</a><br />";
+      $data .= "<a href=\"{$me}?url={$domainNoZip}/{$homeFile}\">{$domainNoZip}</a><br />";
     }
   }
+
+  echo aviewer_basicTemplate($data, 'Choose a Domain');
 }
 
 else { // URL specified
@@ -76,9 +82,17 @@ else { // URL specified
     }
     elseif (in_array($urlDomain . '.zip', $storeScan)) {
       $zip = new ZipArchive;
+
+      echo aviewer_basicTemplate('Loading archive. This may take a moment...<br />', 'Processing...', 1);
+      aviewer_flush();
+
       if ($zip->open("{$store}/{$urlDomain}.zip") === TRUE) {
+        echo aviewer_basicTemplate('Unzipping. This may take a few moments...<br />', '', 2);
+        aviewer_flush();
         $zip->extractTo("{$cacheStore}");
         $zip->close();
+
+        die(aviewer_basicTemplate("Archive Loaded. <a href=\"{$me}?url={$url}\">Redirecting.</a><script type=\"text/javascript\">window.location.reload();</script>", '', 2));
       }
       else {
         die('Zip Extraction Failed.');
@@ -87,14 +101,10 @@ else { // URL specified
     else { // The domain isn't in the store.
       if ($config['passthru'] || $_GET['passthru']) {
         header('Location: ' . $url); // Note: This redirects to the originally embedded URL (thus, we aren't touching it at all).
-        die("<a href=\"$url\">Redirecting.</a>");
+        die(aviewer_basicTemplate("<a href=\"$url\">Redirecting.</a>"));
       }
       else {
-        if (!$_SERVER['HTTP_REFERER']) {
-          $data = 'Domain not found: "' . $urlDomain . '"';
-          aviewer_basicTemplate($data);
-        }
-
+        echo aviewer_basicTemplate('Domain not found: "' . $urlDomain . '"');
         die();
       }
     }
@@ -108,26 +118,27 @@ else { // URL specified
       if (strpos($urlDomain . $urlFile, $find) === 0) {
         $newLocation = str_replace($find, $replace, $urlDomain . $urlFile);
         header("Location: {$me}?url={$newLocation}");
-        die("<a href=\"{$me}?url={$newLocation}\">Redirecting.</a>");
+        die(aviewer_basicTemplate("<a href=\"{$me}?url={$newLocation}\">Redirecting.</a>"));
       }
     }
   }
-  
+
   if (is_dir($absPath)) { // Allow (minimal) directory viewing.
-    if (is_file("{$absPath}/{$homeFile}")) { // Automatically redirect to the home/index file if it exists in the directory.
-      header("Location: {$me}?url={$urlDomain}{$urlFile}/{$homeFile}");
-      die("<a href=\"{$me}?url={$urlDomain}{$urlFile}/{$homeFile}\">Redirecting</a>");
+    if (is_file("{$absPath}/{$config[homeFile]}")) { // Automatically redirect to the home/index file if it exists in the directory.
+      header("Location: {$me}?url={$urlDomain}{$urlFile}/{$config[homeFile]}");
+      die(aviewer_basicTemplate("<a href=\"{$me}?url={$urlDomain}{$urlFile}/{$config[homeFile]}\">Redirecting</a>"));
     }
     else {
       $dirFiles = scandir($absPath); // Get all files.
-      $data = "<h1>Directory \"{$url}\"</h1><hr />";
+      
+      $data = '';
 
       foreach ($dirFiles AS $file) { // List each one.
         if (aviewer_isSpecial($file)) continue; // Don't show ".", "..", etc.
         $data .= "<a href=\"{$me}?url={$url}/{$file}\">$file</a><br />";
       }
 
-      aviewer_basicTemplate($data);
+      echo aviewer_basicTemplate($data, "Directory \"{$url}\"");
     }
   }
   else {
@@ -170,12 +181,11 @@ else { // URL specified
         else $redirectUrl = 'http://' . $urlDomain . $urlFile;
 
         header('Location: ' . $redirectUrl);
-        die("<a href=\"$redirectUrl\">Redirecting.</a>");
+        die(aviewer_basicTemplate("<a href=\"$redirectUrl\">Redirecting.</a>"));
       }
-      else if (!$_SERVER['HTTP_REFERER']) {
-        $data = 'File not found: "' . $absPath . '"';
-        aviewer_basicTemplate($data);
-      }
+//      else if (!$_SERVER['HTTP_REFERER']) {
+        echo aviewer_basicTemplate('File not found: "' . $absPath . '"');
+//      }
 
       die();
     }

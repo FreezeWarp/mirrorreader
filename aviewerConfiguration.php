@@ -1,7 +1,6 @@
 <?php
 $store = '/home/joseph/WebArchives/'; // Configuration variable for where the domains are stored offline.
 $cacheStore = '/var/www/cache/'; // Configuration variable for where we'll store uncompressed zip files and directory symlinks.
-$homeFile = 'index.html';
 
 /* TODO: Domain-Specific Configuration */
 
@@ -18,7 +17,8 @@ $domainConfiguration = array(
     'removeExtra' => false, // This will remove extra comments. In some sites, it will break things, but for the rest it will increase the execution speed of the program.
       
      'getHack' => true, // GET variables will be modified according to the default MirrorWriter pattern if enabled. This is off by default as it causes some slow down and may not be implemented correctly. (It may later be removed from config and turned on by default.)
-     'recognisedExtensions' => ['asp', 'css', 'doc', 'docx', 'htm', 'html', 'js', 'pdf', 'php', 'php4', 'php5', 'rss', 'txt', 'xml']
+     'recognisedExtensions' => ['asp', 'css', 'doc', 'docx', 'htm', 'html', 'js', 'pdf', 'php', 'php4', 'php5', 'rss', 'txt', 'xml'],
+     'homeFile' => 'index.html',
   ),
 
   'www.upokecenter.com' => array( // Working, Mostly
