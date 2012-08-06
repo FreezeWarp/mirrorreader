@@ -44,7 +44,7 @@ $domainConfiguration = array(
     'scriptEccentric' => true,
     'removeExtra' => true,
 
-    'jsReplace' => [
+    'jsReplacePost' => [
       'document.oncontextmenu=new Function("return false");' => '',
     ],
   ),
@@ -123,7 +123,11 @@ $domainConfiguration = array(
 
     'scriptDispose' => false,
     'scriptEccentric' => false,
-    'removeExtra' => true,
+    'removeExtra' => false, // Disabled, as it breaks some older pages.
+      
+    'htmlReplacePre' => [
+      "\n" . '<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\">' => '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">' // Older pages contain this, which breaks the script.
+    ]
   ),
   
   'iimarck.us' => array( // Working (uses BASE)

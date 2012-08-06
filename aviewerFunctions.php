@@ -233,6 +233,10 @@ function entitiesHackInner($stringContent) {
 function aviewer_processHtml($contents) {
   global $config; // Yes, I will make this a class so this is less annoying.
 
+  if (isset($config['htmlReplacePre'])) {
+    foreach ($config['htmlReplacePre'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
+  }
+  
   if ($config['removeExtra']) {
     $contents = preg_replace('/\<\?xml(.+)\?\>/', '', $contents);
     $contents = preg_replace('/\<\!--(.*?)--\>/ism', '', $contents); // Get rid of comments (cleans up the DOM at times, making things faster). We do not remove commnets if they are a part of JavaScript.
@@ -345,6 +349,10 @@ function aviewer_processHtml($contents) {
       }
     }
   }
+  
+  if (isset($config['htmlReplacePost'])) {
+    foreach ($config['htmlReplacePost'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
+  }
 
   return $doc->saveHTML(); // Return the updated data.
 }
@@ -360,6 +368,10 @@ function aviewer_processHtml($contents) {
 function aviewer_processJavascript($contents) {
   global $config, $urlDomain;
 
+  if (isset($config['jsReplacePre'])) {
+    foreach ($config['jsReplacePre'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
+  }
+  
   $contents = preg_replace('/\/\*(.*?)\*\//is', '', $contents); // Removes comments.
 
   if ($config['scriptEccentric']) { // Convert anything that appears to be a suspect file. Because of the nature of this, there is a high chance stuff will break if $scriptEccentric is enabled. But, it allows some sites to work properly that otherwise wouldn't.
@@ -370,8 +382,8 @@ function aviewer_processJavascript($contents) {
     $contents = preg_replace('/("|\')(([a-zA-Z0-9\_\-\/]+)\.(' . implode('|', $config['recognisedExtensions']) . '))\1/ie', 'stripslashes("$1") . aviewer_format("$2") . stripslashes("$1")', $contents);
   }
 
-  if (isset($config['jsReplace'])) {
-    foreach ($config['jsReplace'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
+  if (isset($config['jsReplacePost'])) {
+    foreach ($config['jsReplacePost'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
   }
 
   return $contents; // Return the updated data.
@@ -384,12 +396,16 @@ function aviewer_processJavascript($contents) {
  * @return string
  */
 function aviewer_processCSS($contents) {
+  if (isset($config['cssReplacePre'])) {
+    foreach ($config['cssReplacePre'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
+  }
+
   $contents = preg_replace('/\/\*(.*?)\*\//is', '', $contents); // Removes comments.
   $contents = str_replace(';',";\n", $contents); // Fixes an annoying REGEX quirk below; I won't go into it.
   $contents = preg_replace('/url\((\'|"|)(.+)\\1\)/ei', '\'url($1\' . aviewer_format("$2") . \'$1)\'', $contents); // CSS images are handled with this.
 
-  if (isset($config['cssReplace'])) {
-    foreach ($config['cssReplace'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
+  if (isset($config['cssReplacePost'])) {
+    foreach ($config['cssReplacePost'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
   }
 
   return $contents; // Return the updated data.
