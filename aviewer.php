@@ -36,6 +36,7 @@ error_reporting(E_ALL);
 $data = '';
 
 $url = isset($_GET['url']) ? (string) urldecode($_GET['url']) : false; // Get the URL to display from GET. Note: URL must be functional in a web browser for it to be parsed. (In other words, broken URLs, like "http:google.com" are not fixed in the script. This is an archive viewer, not a Frankenstein machine.)
+$passthru = isset($_GET['passthru']) ? $_GET['passthru'] : false;
 $fileType = isset($_GET['type']) ? (string) $_GET['type'] : false; // Get the URL to display from GET.
 $me = $_SERVER['PHP_SELF']; // This file.
 
@@ -64,8 +65,8 @@ else { // URL specified
   $urlParts = parse_url($url);
   while(strpos($urlParts['path'], '//') !== false) $urlParts['path'] = str_replace('//', '/', $urlParts['path']); // Get rid of excess slashes.
 
-  $urlParts['dir'] = aviewer_filePart($urlParts['path'], 'dir');
-  $urlParts['file'] = aviewer_filePart($urlParts['path'], 'file');
+  $urlParts['dir'] = aviewer_filePart($urlParts['path'], 'dir') ?: '';
+  $urlParts['file'] = aviewer_filePart($urlParts['path'], 'file') ?: '';
 
   // Get proper configuration.
   if (isset($domainConfiguration[$urlParts['host']])) $config = array_merge($domainConfiguration['default'], $domainConfiguration[$urlParts['host']]);
@@ -85,15 +86,15 @@ else { // URL specified
   if (!aviewer_inCache($urlParts['host'])) {
     $storeScan = scandir($store); // Scan the directory that stores offline domains.
     if (in_array($urlParts['host'], $storeScan)) { // Check to see if the domain is in the store.
-      symlink("{$store}/{$urlParts[domain]}", "{$config[cacheStore]}/{$urlParts[domain]}");
+      symlink("{$store}/{$urlParts['host']}", "{$config['cacheStore']}/{$urlParts['host']}") or die(aviewer_basicTemplate("Could not create symlink. Are directory permissions set correctly?<br /><br />Source: {$store}/{$urlParts['host']}/<br />Link Destination: {$config['cacheStore']}/{$urlParts['host']}/", '<span class="error">Error</span>')); // Note, because I couldn't figure it out: symlink params can not contain end slashes
     }
-    elseif (in_array($urlDomain . '.zip', $storeScan)) {
+    elseif (in_array($urlParts['host'] . '.zip', $storeScan)) {
       $zip = new ZipArchive;
 
       echo aviewer_basicTemplate('Loading archive. This may take a moment...<br />', 'Processing...', 1);
       aviewer_flush();
 
-      if ($zip->open("{$store}/$urlParts[domain].zip") === TRUE) {
+      if ($zip->open("{$store}/$urlParts[host].zip") === TRUE) {
         echo aviewer_basicTemplate('Unzipping. This may take a few moments...<br />', '', 2);
         aviewer_flush();
         $zip->extractTo($config['cacheStore']);
@@ -106,7 +107,7 @@ else { // URL specified
       }
     }
     else { // The domain isn't in the store.
-      if ($config['passthru'] || $_GET['passthru']) {
+      if ($config['passthru'] || $passthru) {
         header('Location: ' . $url); // Note: This redirects to the originally embedded URL (thus, we aren't touching it at all).
         die(aviewer_basicTemplate("<a href=\"$url\">Redirecting.</a>"));
       }
@@ -122,9 +123,9 @@ else { // URL specified
   $absPath = $config['cacheStore'] . $urlParts['host'] . $urlParts['path'];
 
   if (is_dir($absPath)) { // Allow (minimal) directory viewing.
-    if (is_file("{$absPath}/{$config[homeFile]}")) { // Automatically redirect to the home/index file if it exists in the directory.
-      header("Location: {$me}?url=$urlParts[path]/{$config[homeFile]}");
-      die(aviewer_basicTemplate("<a href=\"{$me}?url={$urlParts[path]}/{$config[homeFile]}\">Redirecting</a>"));
+    if (is_file("{$absPath}/{$config['homeFile']}")) { // Automatically redirect to the home/index file if it exists in the directory.
+      header("Location: {$me}?url={$urlParts['host']}/{$urlParts['path']}/{$config['homeFile']}");
+      die(aviewer_basicTemplate("<a href=\"{$me}?url={$urlParts['host']}/{$urlParts['path']}/{$config['homeFile']}\">Redirecting</a>"));
     }
     else {
       $dirFiles = scandir($absPath); // Get all files.

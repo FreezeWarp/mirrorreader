@@ -43,16 +43,14 @@ function aviewer_stripZip($file) {
 
 
 /**
- * @global type $cacheStore - FS directory where caches are stored.
+ * @global type $config - Domain configuration for cacheStore
  * @param type $domain - The domain to check.
  * @return boolean - True if in cache, false otherwise.
  */
 function aviewer_inCache($domain) {
-  global $cacheStore;
+  global $config;
 
-  $fileScan = (array) scandir($cacheStore); // Read the directory and return each file in the form of an array.
-
-  if (in_array($domain, $fileScan)) return true; // TODO?
+  if (in_array($domain, (array) scandir($config['cacheStore']))) return true; // TODO?
   else return false;
 }
 
@@ -90,7 +88,10 @@ function aviewer_format($file) { // Attempts to format URLs -- absolute or relat
     }
   }
 
-  if (stripos($file, 'http:') === 0 || stripos($file, 'https:') === 0 || stripos($file, 'mailto:') === 0 || stripos($file, 'ftp:') === 0) { // Domain Included
+  if (stripos($file, 'data:') === 0) { // Do not process data: URIs
+    return $file;
+  }
+  elseif (stripos($file, 'http:') === 0 || stripos($file, 'https:') === 0 || stripos($file, 'mailto:') === 0 || stripos($file, 'ftp:') === 0) { // Domain Included
   }
   elseif (strpos($file, '/') === 0) { // Absolute Path
     $file = "{$urlParts[host]}/{$file}";
@@ -178,6 +179,7 @@ function aviewer_basicTemplate($data, $title = '', $special = 0) {
     <style>
     body { font-family: Ubuntu, sans; }
     h1 { margin: 0px; padding: 5px; display: block; border-color: gray; border-spacing: 4px; background-color: #9f9f9f; }
+    .error { color: #ff0000; }
     </style>
   </head>
 
@@ -264,14 +266,14 @@ function aviewer_processHtml($contents) {
   for ($i = 0; $i < $linkList->length; $i++) {
     if ($linkList->item($i)->hasAttribute('href')) {
       if ($linkList->item($i)->getAttribute('type') == 'text/css' || $linkList->item($i)->getAttribute('rel') == 'stylesheet') {
-        $linkList->item($i)->setAttribute('href', aviewer_format($linkList->item($i)->getAttribute('href') . '&type=css'));
+        $linkList->item($i)->setAttribute('href', aviewer_format($linkList->item($i)->getAttribute('href')) . '&type=css');
       }
       else {
         $linkList->item($i)->setAttribute('href', aviewer_format($linkList->item($i)->getAttribute('href')));
       }
     }
   }
-
+  
   // Process SCRIPT tags.
   $scriptList = $doc->getElementsByTagName('script');
   $scriptDrop = array();
@@ -402,15 +404,24 @@ function aviewer_processJavascript($contents) {
   
   $contents = preg_replace('/\/\*(.*?)\*\//is', '', $contents); // Removes comments.
 
-  if ($config['scriptEccentric']) { // Convert anything that appears to be a suspect file. Because of the nature of this, there is a high chance stuff will break if $scriptEccentric is enabled. But, it allows some sites to work properly that otherwise wouldn't.
-    $contents = preg_replace_callback('/(([a-zA-Z0-9\_\-\/]+)(\.(' . implode('|', $config['recognisedExtensions']) . '))[^a-zA-Z0-9])/i', function($m) {
-      return aviewer_format($m[1]);
-    }, $contents); // Note that if the extension is followed by a letter or integer, it is possibly a part of a JavaScript property, which we don't want to convert.
+  if (in_array('suspectFileAnywhere', $config['scriptHacks'])) { // Convert anything that appears to be a suspect file. Because of the nature of this, there is a high chance stuff will break if enabled. But, it allows some sites to work properly that otherwise wouldn't.
+    $contents = preg_replace_callback('/(([a-zA-Z0-9\_\-\/]+)(\.(' . implode('|', $config['recognisedExtensions']) . ')))([^a-zA-Z0-9])/i', function($m) {
+      return aviewer_format($m[1]) . $m[5];
+    }, $contents); // Note that if the extension is followed by a letter or integer, it is possibly a part of a JavaScript property, which we don't want to convert
+  }
+  elseif (in_array('suspectFileString', $config['scriptHacks'])) { // Convert strings that contain files ending with suspect extensions.
+    $contents = preg_replace_callback('/("|\')(([a-zA-Z0-9\_\-\/]+)\.(' . implode('|', $config['recognisedExtensions']) . '))\1/i', function($m) {
+      return $m[1] . aviewer_format($m[2]) . $m[1] . 2;
+    }, $contents);
+  }
+  
+  if (in_array('suspectDomainAnywhere', $config['scriptHacks'])) {
     $contents = str_replace('http://' . $urlParts['host'], $_SERVER['PHP_SELF'] . '?url=' . $urlParts['host'], $contents); // In some cases, the URL may be dropped directly in. This is an unreliable method of trying to replace it with the equvilent aviewer.php script, and is only used with the eccentric method, since this is rarely used when string-dropped.
   }
-  else { // Convert strings that contain files ending with suspect extensions.
-    $contents = preg_replace_callback('/("|\')(([a-zA-Z0-9\_\-\/]+)\.(' . implode('|', $config['recognisedExtensions']) . '))\1/i', function($m) {
-      return stripslashes($m[1]) . aviewer_format($m[2]) . stripslashes($m[1]);
+  
+  if (in_array('suspectDirString', $config['scriptHacks'])) {
+    $contents = preg_replace_callback('/("|\')((\/|)((([a-zA-Z0-9\_\-]+)\/)+))\1/i', function($m) {
+      return $m[1] . aviewer_format($m[2]) . $m[1];
     }, $contents);
   }
 
@@ -433,8 +444,10 @@ function aviewer_processCSS($contents) {
   }
 
   $contents = preg_replace('/\/\*(.*?)\*\//is', '', $contents); // Removes comments.
-  $contents = str_replace(';',";\n", $contents); // Fixes an annoying REGEX quirk below; I won't go into it.
-  $contents = preg_replace('/url\((\'|"|)(.+)\\1\)/ei', '\'url($1\' . aviewer_format("$2") . \'$1)\'', $contents); // CSS images are handled with this.
+//  $contents = str_replace(';',";\n", $contents); // Fixes an annoying REGEX quirk below; I won't go into it.
+  $contents = preg_replace_callback('/url\((\'|"|)(.+?)\\1\)/i', function($m) {
+    return 'url(' . $m[1] . aviewer_format($m[2]) . $m[1] . ')';
+  }, $contents); // CSS images are handled with this.
 
   if (isset($config['cssReplacePost'])) {
     foreach ($config['cssReplacePost'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
