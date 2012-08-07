@@ -6,6 +6,7 @@ $store = '/media/LINUX_SYSTEM2/WebArchives/'; // Configuration variable for wher
 $domainConfiguration = array(
   'default' => array(
     'passthru' => false, // If enabled, when the script encounters a non-stored file, it will instead include the live one from the web -- say, PayPal and Twitter links.
+    'baseMethod' => true,
 
     'selectHack' => false, // If enabled, OPTION tags that contain URLs in their "value" attr will work.
     'metaHack' => false, // If enabled, Meta REFRESH will work.

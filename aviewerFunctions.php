@@ -64,6 +64,7 @@ function aviewer_inCache($domain) {
  * @return string - New file that can be queried by aviewer.php.
  */
 function aviewer_format($file) { // Attempts to format URLs -- absolute or relative -- so that they can be loaded with the viewer.
+  return $file;
   global $me, $urlParts, $config; // Oh, sue me. I'll make it a class or something later.
   //return $file;
 
@@ -115,7 +116,7 @@ function aviewer_format($file) { // Attempts to format URLs -- absolute or relat
 
 /**
  * Obtains the directory part of a file string.
- * @param string $file - The file.
+ * @param string $file - The file.?
  * @param string $part - The part, either "file", "directory", "root", or "nonroot".
  * @return string - The file, with only the directory in the string.
  */
@@ -239,7 +240,7 @@ function entitiesHackInner($stringContent) {
  * @return string
  */
 function aviewer_processHtml($contents) {
-  global $config; // Yes, I will make this a class so this is less annoying.
+  global $config, $urlParts, $me; // Yes, I will make this a class so this is less annoying.
 
   if (isset($config['htmlReplacePre'])) {
     foreach ($config['htmlReplacePre'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
@@ -267,131 +268,174 @@ function aviewer_processHtml($contents) {
   $doc->substituteEntities = false;
   $doc->formatOutput = false;
   $doc->loadHTML($contents); // Load the HTML.
+  
+//  $doc2 = new DOMDocument();
+//  $doc2->loadHTML("<base href=\"pi\" />"); // Load the HTML.
+//  $node = $doc2->createElement("base");
+//  $node->setAttribute('href', "{$me}?url={$urlParts['host']}");
+//  $head = $doc->getElementsByTagName('head');
+//  foreach ($head AS $headNode) {
+//    $doc->appendChild($node);
+//  }
+//  $head = $doc->getElementsByTagName('head');
+//  foreach ($head AS $headNode) {
+//    foreach ($doc2)
+//    $doc->appendChild($node);
+//  }
+  
+//  $head = $doc->getElementsByTagName("head")[0];
+  
+//  $base = $doc->createElement('base');
+//  $base->setAttribute('href', "{$me}?url={$urlParts['host']}");
+  
+//  $item = $doc->createElement("item");
+//  $item->apendChild($title);
+  
+//  $head->appendChild($item);  
+ 
+//  $xml = new DomDocument();
+//  $xml->loadXml('<base href="fun" />');    
 
-  // Process LINK tags
-  $linkList = $doc->getElementsByTagName('link');
-  for ($i = 0; $i < $linkList->length; $i++) {
-    if ($linkList->item($i)->hasAttribute('href')) {
-      if ($linkList->item($i)->getAttribute('type') == 'text/css' || $linkList->item($i)->getAttribute('rel') == 'stylesheet') {
-        $linkList->item($i)->setAttribute('href', aviewer_format($linkList->item($i)->getAttribute('href')) . '&type=css');
+  //grab a node
+  
+  if ($config['baseMethod']) {
+    $xpath = new DOMXPath($doc);
+    $results = $xpath->query('head');
+    $head = $results->item(0);
+
+    $base = $doc->createElement('base');
+    $base->setAttribute('href', "{$me}?url={$urlParts['host']}/");
+
+    $head->appendChild($base);
+
+    return $doc->saveHTML();
+  }
+  else {
+    // Process LINK tags
+    $linkList = $doc->getElementsByTagName('link');
+    for ($i = 0; $i < $linkList->length; $i++) {
+      if ($linkList->item($i)->hasAttribute('href')) {
+        if ($linkList->item($i)->getAttribute('type') == 'text/css' || $linkList->item($i)->getAttribute('rel') == 'stylesheet') {
+          $linkList->item($i)->setAttribute('href', aviewer_format($linkList->item($i)->getAttribute('href')) . '&type=css');
+        }
+        else {
+          $linkList->item($i)->setAttribute('href', aviewer_format($linkList->item($i)->getAttribute('href')));
+        }
+      }
+    }
+
+    // Process SCRIPT tags.
+    $scriptList = $doc->getElementsByTagName('script');
+    $scriptDrop = array();
+    for ($i = 0; $i < $scriptList->length; $i++) {
+      if ($scriptList->item($i)->hasAttribute('src')) {
+        $scriptList->item($i)->setAttribute('src', aviewer_format($scriptList->item($i)->getAttribute('src')) . '&type=js');
       }
       else {
-        $linkList->item($i)->setAttribute('href', aviewer_format($linkList->item($i)->getAttribute('href')));
+        if ($config['scriptDispose']) $scriptDrop[] = $scriptList->item($i);
+        else $scriptList->item($i)->nodeValue = htmlentities(aviewer_processJavascript($scriptList->item($i)->nodeValue));
       }
     }
-  }
-  
-  // Process SCRIPT tags.
-  $scriptList = $doc->getElementsByTagName('script');
-  $scriptDrop = array();
-  for ($i = 0; $i < $scriptList->length; $i++) {
-    if ($scriptList->item($i)->hasAttribute('src')) {
-      $scriptList->item($i)->setAttribute('src', aviewer_format($scriptList->item($i)->getAttribute('src')) . '&type=js');
+    foreach ($scriptDrop AS $drop) {
+      $drop->parentNode->removeChild($drop);
     }
-    else {
-      if ($config['scriptDispose']) $scriptDrop[] = $scriptList->item($i);
-      else $scriptList->item($i)->nodeValue = htmlentities(aviewer_processJavascript($scriptList->item($i)->nodeValue));
+
+    // Process STYLE tags.
+    $styleList = $doc->getElementsByTagName('style');
+    for ($i = 0; $i < $styleList->length; $i++) {
+      $styleList->item($i)->nodeValue = htmlentities(aviewer_processCSS($styleList->item($i)->nodeValue));
     }
-  }
-  foreach ($scriptDrop AS $drop) {
-    $drop->parentNode->removeChild($drop);
-  }
 
-  // Process STYLE tags.
-  $styleList = $doc->getElementsByTagName('style');
-  for ($i = 0; $i < $styleList->length; $i++) {
-    $styleList->item($i)->nodeValue = htmlentities(aviewer_processCSS($styleList->item($i)->nodeValue));
-  }
-
-  // Process BASE tags. (EXPERIMENTAL)
-  // These are processed really strangely from what I've seen. I've only found one case in the wild so far, and the replacment works with it.
-  $baseList = $doc->getElementsByTagName('base');
-  for ($i = 0; $i < $baseList->length; $i++) {    
-    if ($baseList->item($i)->hasAttribute('href')) {
-      $baseList->item($i)->setAttribute('href', aviewer_format($baseList->item($i)->getAttribute('src')));
-    }
-  }
-
-  // Process IMG, VIDEO, AUDIO, IFRAME tags
-  foreach (array('img', 'video', 'audio', 'frame', 'iframe', 'applet') AS $ele) {
-    $imgList = $doc->getElementsByTagName($ele);
-    for ($i = 0; $i < $imgList->length; $i++) {
-      if ($imgList->item($i)->hasAttribute('src')) {
-        $imgList->item($i)->setAttribute('src', aviewer_format($imgList->item($i)->getAttribute('src')));
+    // Process BASE tags. (EXPERIMENTAL)
+    // These are processed really strangely from what I've seen. I've only found one case in the wild so far, and the replacment works with it.
+    $baseList = $doc->getElementsByTagName('base');
+    for ($i = 0; $i < $baseList->length; $i++) {    
+      if ($baseList->item($i)->hasAttribute('href')) {
+        $baseList->item($i)->setAttribute('href', aviewer_format($baseList->item($i)->getAttribute('src')));
       }
     }
-  }
 
-  // Process A, AREA (image map) tags
-  foreach (array('a', 'area') AS $ele) {
-    $aList = $doc->getElementsByTagName($ele);
-    for ($i = 0; $i < $aList->length; $i++) {
-      if ($aList->item($i)->hasAttribute('href')) {
-        $aList->item($i)->setAttribute('href', aviewer_format($aList->item($i)->getAttribute('href')));
-      }
-    }
-  }
-
-  // Process BODY, TABLE, TD, and TH tags w/ backgrounds. TABLE, TD & TH do support the background tag, but it was an extension of both Netscape and IE way back, and today most browsers still recognise it and will add a background image as appropriate, so... we have to support it.
-  foreach (array('body', 'table', 'td', 'th') AS $ele) {
-    $aList = $doc->getElementsByTagName($ele);
-    for ($i = 0; $i < $aList->length; $i++) {
-      if ($aList->item($i)->hasAttribute('background')) {
-        $aList->item($i)->setAttribute('background', aviewer_format($aList->item($i)->getAttribute('background')));
-      }
-    }
-  }
-
-  // Process Option Links; some sites will store links in OPTION tags and then sue Javascript to link to them. Thus, if the hack is enabled, we will try to cope.
-  if ($config['selectHack']) {
-    $optionList = $doc->getElementsByTagName('option');
-    for ($i = 0; $i < $optionList->length; $i++) {
-      if ($optionList->item($i)->hasAttribute('value')) {
-        $optionValue = $optionList->item($i)->getAttribute('value');
-        if (preg_match('/\.(htm|html|php|shtml|\/)$/', $optionValue)) { // TODO Optimise
-          $optionList->item($i)->setAttribute('value', aviewer_format($optionValue));
+    // Process IMG, VIDEO, AUDIO, IFRAME tags
+    foreach (array('img', 'video', 'audio', 'frame', 'iframe', 'applet') AS $ele) {
+      $imgList = $doc->getElementsByTagName($ele);
+      for ($i = 0; $i < $imgList->length; $i++) {
+        if ($imgList->item($i)->hasAttribute('src')) {
+          $imgList->item($i)->setAttribute('src', aviewer_format($imgList->item($i)->getAttribute('src')));
         }
       }
     }
-  }
 
-  // This is the meta-refresh hack, which tries to fix meta-refresh headers that may in some cases automatically redirect a page, similar to <a href>. This is hard to work with, and in general sites wishing to achieve this will often implement it instead using headers (which, due to the nature of an archive, will not be transmitted and thus we don't have to worry about modifying them) or using JavaScript (which is never easy to implement, though in some cases it still works). An example: <meta http-equiv="Refresh" content="5; URL=http://www.google.com/index">
-  if ($config['metaHack']) {
-    $metaList = $doc->getElementsByTagName('meta');
-    for ($i = 0; $i < $metaList->length; $i++) {
-      if ($metaList->item($i)->hasAttribute('http-equiv') && $metaList->item($i)->hasAttribute('content')) {
-        if (strtolower($metaList->item($i)->getAttribute('http-equiv')) == 'refresh') {
-          $metaList->item($i)->setAttribute('content', preg_replace('/^(.*)url=([^ ]+)(.*)$/ies', '"$1" . aviewer_format("$2") . "$3"', $metaList->item($i)->getAttribute('content')));
+    // Process A, AREA (image map) tags
+    foreach (array('a', 'area') AS $ele) {
+      $aList = $doc->getElementsByTagName($ele);
+      for ($i = 0; $i < $aList->length; $i++) {
+        if ($aList->item($i)->hasAttribute('href')) {
+          $aList->item($i)->setAttribute('href', aviewer_format($aList->item($i)->getAttribute('href')));
         }
       }
     }
-  }
-  
-  if ($config['dirtyAttributes']) { // This is an incredibly horrible config in which we will parse the CSS of every single element in the document. It takes way too long, but the alternative, regex, is too unreliable.
-    $docAll = new RecursiveIteratorIterator(
-      new RecursiveDOMIterator($doc),
-      RecursiveIteratorIterator::SELF_FIRST
-    );
 
-    foreach($docAll as $node) {
-      if ($node->nodeType === XML_ELEMENT_NODE) {
-        if ($node->hasAttribute('style')) {
-          $node->setAttribute('style', str_replace("\n", '', aviewer_processCSS($node->getAttribute('style'))));
+    // Process BODY, TABLE, TD, and TH tags w/ backgrounds. TABLE, TD & TH do support the background tag, but it was an extension of both Netscape and IE way back, and today most browsers still recognise it and will add a background image as appropriate, so... we have to support it.
+    foreach (array('body', 'table', 'td', 'th') AS $ele) {
+      $aList = $doc->getElementsByTagName($ele);
+      for ($i = 0; $i < $aList->length; $i++) {
+        if ($aList->item($i)->hasAttribute('background')) {
+          $aList->item($i)->setAttribute('background', aviewer_format($aList->item($i)->getAttribute('background')));
         }
-        foreach (array('onclick', 'onmouseover', 'onmouseout', 'onfocus', 'onblur', 'onchange', 'onsubmit') as $att) {
-          if ($node->hasAttribute($att)) {
-            $node->setAttribute($att, str_replace("\n", '', aviewer_processJavascript($node->getAttribute($att))));
+      }
+    }
+
+    // Process Option Links; some sites will store links in OPTION tags and then sue Javascript to link to them. Thus, if the hack is enabled, we will try to cope.
+    if ($config['selectHack']) {
+      $optionList = $doc->getElementsByTagName('option');
+      for ($i = 0; $i < $optionList->length; $i++) {
+        if ($optionList->item($i)->hasAttribute('value')) {
+          $optionValue = $optionList->item($i)->getAttribute('value');
+          if (preg_match('/\.(htm|html|php|shtml|\/)$/', $optionValue)) { // TODO Optimise
+            $optionList->item($i)->setAttribute('value', aviewer_format($optionValue));
           }
         }
       }
     }
-  }
-  
-  if (isset($config['htmlReplacePost'])) {
-    foreach ($config['htmlReplacePost'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
-  }
 
-  return $doc->saveHTML(); // Return the updated data.
+    // This is the meta-refresh hack, which tries to fix meta-refresh headers that may in some cases automatically redirect a page, similar to <a href>. This is hard to work with, and in general sites wishing to achieve this will often implement it instead using headers (which, due to the nature of an archive, will not be transmitted and thus we don't have to worry about modifying them) or using JavaScript (which is never easy to implement, though in some cases it still works). An example: <meta http-equiv="Refresh" content="5; URL=http://www.google.com/index">
+    if ($config['metaHack']) {
+      $metaList = $doc->getElementsByTagName('meta');
+      for ($i = 0; $i < $metaList->length; $i++) {
+        if ($metaList->item($i)->hasAttribute('http-equiv') && $metaList->item($i)->hasAttribute('content')) {
+          if (strtolower($metaList->item($i)->getAttribute('http-equiv')) == 'refresh') {
+            $metaList->item($i)->setAttribute('content', preg_replace('/^(.*)url=([^ ]+)(.*)$/ies', '"$1" . aviewer_format("$2") . "$3"', $metaList->item($i)->getAttribute('content')));
+          }
+        }
+      }
+    }
+
+    if ($config['dirtyAttributes']) { // This is an incredibly horrible config in which we will parse the CSS of every single element in the document. It takes way too long, but the alternative, regex, is too unreliable.
+      $docAll = new RecursiveIteratorIterator(
+        new RecursiveDOMIterator($doc),
+        RecursiveIteratorIterator::SELF_FIRST
+      );
+
+      foreach($docAll as $node) {
+        if ($node->nodeType === XML_ELEMENT_NODE) {
+          if ($node->hasAttribute('style')) {
+            $node->setAttribute('style', str_replace("\n", '', aviewer_processCSS($node->getAttribute('style'))));
+          }
+          foreach (array('onclick', 'onmouseover', 'onmouseout', 'onfocus', 'onblur', 'onchange', 'onsubmit') as $att) {
+            if ($node->hasAttribute($att)) {
+              $node->setAttribute($att, str_replace("\n", '', aviewer_processJavascript($node->getAttribute($att))));
+            }
+          }
+        }
+      }
+    }
+
+    if (isset($config['htmlReplacePost'])) {
+      foreach ($config['htmlReplacePost'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
+    }
+
+    return $doc->saveHTML(); // Return the updated data.
+  }
 }
 
 
@@ -405,38 +449,43 @@ function aviewer_processHtml($contents) {
 function aviewer_processJavascript($contents) {
   global $config, $urlParts;
 
-  if (isset($config['jsReplacePre'])) {
-    foreach ($config['jsReplacePre'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
+  if ($config['baseMethod']) {
+    return $contents;
   }
-  
-  $contents = preg_replace('/\/\*(.*?)\*\//is', '', $contents); // Removes comments.
+  else {
+    if (isset($config['jsReplacePre'])) {
+      foreach ($config['jsReplacePre'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
+    }
 
-  if (in_array('suspectFileAnywhere', $config['scriptHacks'])) { // Convert anything that appears to be a suspect file. Because of the nature of this, there is a high chance stuff will break if enabled. But, it allows some sites to work properly that otherwise wouldn't.
-    $contents = preg_replace_callback('/(([a-zA-Z0-9\_\-\/]+)(\.(' . implode('|', $config['recognisedExtensions']) . ')))([^a-zA-Z0-9])/i', function($m) {
-      return aviewer_format($m[1]) . $m[5];
-    }, $contents); // Note that if the extension is followed by a letter or integer, it is possibly a part of a JavaScript property, which we don't want to convert
-  }
-  elseif (in_array('suspectFileString', $config['scriptHacks'])) { // Convert strings that contain files ending with suspect extensions.
-    $contents = preg_replace_callback('/("|\')(([a-zA-Z0-9\_\-\/]+)\.(' . implode('|', $config['recognisedExtensions']) . '))\1/i', function($m) {
-      return $m[1] . aviewer_format($m[2]) . $m[1] . 2;
-    }, $contents);
-  }
-  
-  if (in_array('suspectDomainAnywhere', $config['scriptHacks'])) {
-    $contents = str_replace('http://' . $urlParts['host'], $_SERVER['PHP_SELF'] . '?url=' . $urlParts['host'], $contents); // In some cases, the URL may be dropped directly in. This is an unreliable method of trying to replace it with the equvilent aviewer.php script, and is only used with the eccentric method, since this is rarely used when string-dropped.
-  }
-  
-  if (in_array('suspectDirString', $config['scriptHacks'])) {
-    $contents = preg_replace_callback('/("|\')((\/|)((([a-zA-Z0-9\_\-]+)\/)+))\1/i', function($m) {
-      return $m[1] . aviewer_format($m[2]) . $m[1];
-    }, $contents);
-  }
+    $contents = preg_replace('/\/\*(.*?)\*\//is', '', $contents); // Removes comments.
 
-  if (isset($config['jsReplacePost'])) {
-    foreach ($config['jsReplacePost'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
-  }
+    if (in_array('suspectFileAnywhere', $config['scriptHacks'])) { // Convert anything that appears to be a suspect file. Because of the nature of this, there is a high chance stuff will break if enabled. But, it allows some sites to work properly that otherwise wouldn't.
+      $contents = preg_replace_callback('/(([a-zA-Z0-9\_\-\/]+)(\.(' . implode('|', $config['recognisedExtensions']) . ')))([^a-zA-Z0-9])/i', function($m) {
+        return aviewer_format($m[1]) . $m[5];
+      }, $contents); // Note that if the extension is followed by a letter or integer, it is possibly a part of a JavaScript property, which we don't want to convert
+    }
+    elseif (in_array('suspectFileString', $config['scriptHacks'])) { // Convert strings that contain files ending with suspect extensions.
+      $contents = preg_replace_callback('/("|\')(([a-zA-Z0-9\_\-\/]+)\.(' . implode('|', $config['recognisedExtensions']) . '))\1/i', function($m) {
+        return $m[1] . aviewer_format($m[2]) . $m[1] . 2;
+      }, $contents);
+    }
 
-  return $contents; // Return the updated data.
+    if (in_array('suspectDomainAnywhere', $config['scriptHacks'])) {
+      $contents = str_replace('http://' . $urlParts['host'], $_SERVER['PHP_SELF'] . '?url=' . $urlParts['host'], $contents); // In some cases, the URL may be dropped directly in. This is an unreliable method of trying to replace it with the equvilent aviewer.php script, and is only used with the eccentric method, since this is rarely used when string-dropped.
+    }
+
+    if (in_array('suspectDirString', $config['scriptHacks'])) {
+      $contents = preg_replace_callback('/("|\')((\/|)((([a-zA-Z0-9\_\-]+)\/)+))\1/i', function($m) {
+        return $m[1] . aviewer_format($m[2]) . $m[1];
+      }, $contents);
+    }
+
+    if (isset($config['jsReplacePost'])) {
+      foreach ($config['jsReplacePost'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
+    }
+
+    return $contents; // Return the updated data.
+  }
 }
 
 
@@ -446,21 +495,26 @@ function aviewer_processJavascript($contents) {
  * @return string
  */
 function aviewer_processCSS($contents) {
-  if (isset($config['cssReplacePre'])) {
-    foreach ($config['cssReplacePre'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
+  if ($config['baseMethod']) {
+    return $contents;
   }
+  else {
+    if (isset($config['cssReplacePre'])) {
+      foreach ($config['cssReplacePre'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
+    }
 
-  $contents = preg_replace('/\/\*(.*?)\*\//is', '', $contents); // Removes comments.
-//  $contents = str_replace(';',";\n", $contents); // Fixes an annoying REGEX quirk below; I won't go into it.
-  $contents = preg_replace_callback('/url\((\'|"|)(.+?)\\1\)/i', function($m) {
-    return 'url(' . $m[1] . aviewer_format($m[2]) . $m[1] . ')';
-  }, $contents); // CSS images are handled with this.
+    $contents = preg_replace('/\/\*(.*?)\*\//is', '', $contents); // Removes comments.
+  //  $contents = str_replace(';',";\n", $contents); // Fixes an annoying REGEX quirk below; I won't go into it.
+    $contents = preg_replace_callback('/url\((\'|"|)(.+?)\\1\)/i', function($m) {
+      return 'url(' . $m[1] . aviewer_format($m[2]) . $m[1] . ')';
+    }, $contents); // CSS images are handled with this.
 
-  if (isset($config['cssReplacePost'])) {
-    foreach ($config['cssReplacePost'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
+    if (isset($config['cssReplacePost'])) {
+      foreach ($config['cssReplacePost'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
+    }
+
+    return $contents; // Return the updated data.
   }
-
-  return $contents; // Return the updated data.
 }
 
 

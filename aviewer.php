@@ -15,20 +15,7 @@
    limitations under the License.
 */
 
-/* A basic overview of this file; note that it is still in early alpha and what-not:
-1. We define all functions.
-2. We check to see if a URL for lookup is specified.
- 2a. If not, we list all stored URLs.
- 2b. If it is, we:
-  2bi. Check to see if it is defined in the cache. If it is, we get it and display it.
-  2bii. If not, we determine whether it stored compressed. If so, we uncompress it, otherwise we link it. */
-
-/* Additionally, a few other thoughts:
- * There are far simpler ways one can go about doing what this script does -- displaying a website archive. However, there are certain limitations to these other methods. The best example is with Javascript. Normally, sites that store URLs in Javascript are going to have trouble displaying in an archive reader. Here, however, a number of hacks are used that detect and fix these issues. Technically, one could also simulate this entire process by simply changing the document base. However, even when I tried just doing this, I found that a number of problems are apt to crop up. At the very least, sites that include their domain in their links aren't going to display using this method. Ultimately, there is no truly simple way of fixing this . What I did is the hard, and perhaps uneccessary, way. It also allows for customisations that simply can't be done in any simpler way, like rewriting file names and providing (eventually) UserStyles and UserScripts-like hacks. Is there are a simpler way? Yes. Is there a more customisable and fool-proof way? There simply isn't..
- * Configuration can be set per-domain (it's wonderful), making a greater array of features possible. The configuration directives are subject to change (and passthru in particular will likely be removed.) The most common toggle is "scriptEccentric", and is a great place to start with some websites, as it will potentially fix the JavaScripts on these sites. It is also liable to break them.
- * A part of the goal of this is to have a small size, and not be some bloated mess. Ideally, this should never exceed 1,000 lines, sans configuration. As a result, it will be limited in some features.
- * Finally, it is currently not that well optimised. It's getting there, though. Hopefully, it will support ZIP seeks, use less regex, 
- */
+/* Check http://code.google.com/p/mirrorreader/w/list for help. */
 
 require('aviewerConfiguration.php');
 require('aviewerFunctions.php');
@@ -191,8 +178,8 @@ else { // URL specified
           default:                                           $fileType = 'other'; break;
         }
       }
-
-      if ($fileType == 'other' && preg_match('/^(\<\!DOCTYPE|\<html)/i', $contents)) $fileType = 'html';
+      
+      if ($fileType == 'other' && preg_match('/^([\ \n]*)(\<\!DOCTYPE|\<html)/i', $contents)) $fileType = 'html';
 
       switch ($fileType) {
         case 'html': header('Content-type: text/html');       echo aviewer_processHtml($contents);       break;
