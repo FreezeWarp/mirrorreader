@@ -1,6 +1,5 @@
 <?php
 $store = '/home/joseph/WebArchives/'; // Configuration variable for where the domains are stored offline.
-$cacheStore = '/var/www/cache/'; // Configuration variable for where we'll store uncompressed zip files and directory symlinks.
 
 
 
@@ -20,6 +19,8 @@ $domainConfiguration = array(
      'recognisedExtensions' => ['asp', 'css', 'doc', 'docx', 'gif', 'htm', 'html', 'jpeg', 'jpg', 'js', 'pdf', 'php', 'php4', 'php5', 'png', 'rss', 'txt', 'xml'], // List of recognised extensions.
      'homeFile' => 'index.html', // The "index" file, usually set as a part of MirrorReader's settings.
       
+     'cacheStore' => '/var/www/cache/',
+      
      /* Additional Configuration Directives
       * 'redirect' -- An array in the form of "find => replace" that redirects domains, directories, and files.
       * 'mirror' -- An array in the form of "mirror" that means all domain lookups under this address are identical.
@@ -36,6 +37,10 @@ $domainConfiguration = array(
   
   'www.lostlevels.org' => array( // Working
     'mirror' => ['lostlevels.org']
+  ),
+    
+  'www.jaytheham.com' => array(
+    'dirtyAttributes' => true,
   ),
     
   'mmxz.zophar.net' => array(

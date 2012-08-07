@@ -35,7 +35,7 @@ require('aviewerFunctions.php');
 error_reporting(E_ALL);
 $data = '';
 
-$url = isset($_GET['url']) ? (string) urldecode($_GET['url']) : false; // Get the URL to display from GET.
+$url = isset($_GET['url']) ? (string) urldecode($_GET['url']) : false; // Get the URL to display from GET. Note: URL must be functional in a web browser for it to be parsed. (In other words, broken URLs, like "http:google.com" are not fixed in the script. This is an archive viewer, not a Frankenstein machine.)
 $fileType = isset($_GET['type']) ? (string) $_GET['type'] : false; // Get the URL to display from GET.
 $me = $_SERVER['PHP_SELF']; // This file.
 
@@ -57,34 +57,35 @@ if ($url === false) { // No URL specified.
 }
 
 else { // URL specified
-  $urlPrefixless = preg_replace('/^((http|https|ftp|mailto):(\/\/|)|)/', '', $url);
-  while(strpos($urlPrefixless, '//') !== false) $urlPrefixless = str_replace('//', '/', $urlPrefixless); // Get rid of excess slashes.
+  if (stripos($url, 'http:') !== 0 && stripos($url, 'https:') !== 0 && stripos($url, 'mailto:') !== 0 && stripos($url, 'ftp:') !== 0) { // Domain Not Included, Add It
+    $url = 'http://' . $url;
+  }
 
-  $urlDomain = preg_replace('/^(([a-zA-Z0-9\.\-\_]+?)\.(com|net|org|info|us|co\.jp))(\/(.*)|)$/', '\\1', $urlPrefixless); // This is prolly the worst way to do this; TODO
-  $urlFile = preg_replace('/^(([a-zA-Z0-9\.\-\_\?\&\=]+?)\.(com|net|org|info|us|co\.jp))(\/(.*)|)$/', '\\4', $urlPrefixless); // This is prolly the worst way to do this; TODO
+  $urlParts = parse_url($url);
+  while(strpos($urlParts['path'], '//') !== false) $urlParts['path'] = str_replace('//', '/', $urlParts['path']); // Get rid of excess slashes.
 
-  $urlDirectory = aviewer_dirPart($urlFile);
-  $absPath = $cacheStore . $urlDomain . '/' . $urlFile;
+  $urlParts['dir'] = aviewer_filePart($urlParts['path'], 'dir');
+  $urlParts['file'] = aviewer_filePart($urlParts['path'], 'file');
 
   // Get proper configuration.
-  if (isset($domainConfiguration[$urlDomain])) $config = array_merge($domainConfiguration['default'], $domainConfiguration[$urlDomain]);
+  if (isset($domainConfiguration[$urlParts['host']])) $config = array_merge($domainConfiguration['default'], $domainConfiguration[$urlParts['host']]);
   else $config = $domainConfiguration['default'];
 
   /* Handle $config Redirects */
   if (isset($config['redirect'])) {
     foreach ($config['redirect'] AS $find => $replace) {
-      if (strpos($urlDomain . $urlFile, $find) === 0) {
-        $newLocation = str_replace($find, $replace, $urlDomain . $urlFile);
+      if (strpos($urlParts['host'] . $urlParts['path'], $find) === 0) {
+        $newLocation = str_replace($find, $replace, $urlParts['host'] . $urlParts['path']);
         header("Location: {$me}?url={$newLocation}");
         die(aviewer_basicTemplate("<a href=\"{$me}?url={$newLocation}\">Redirecting.</a>"));
       }
     }
   }
 
-  if (!aviewer_inCache($urlDomain)) {
+  if (!aviewer_inCache($urlParts['host'])) {
     $storeScan = scandir($store); // Scan the directory that stores offline domains.
-    if (in_array($urlDomain, $storeScan)) { // Check to see if the domain is in the store.
-      symlink("{$store}/{$urlDomain}", "{$cacheStore}/{$urlDomain}");
+    if (in_array($urlParts['host'], $storeScan)) { // Check to see if the domain is in the store.
+      symlink("{$store}/{$urlParts[domain]}", "{$config[cacheStore]}/{$urlParts[domain]}");
     }
     elseif (in_array($urlDomain . '.zip', $storeScan)) {
       $zip = new ZipArchive;
@@ -92,10 +93,10 @@ else { // URL specified
       echo aviewer_basicTemplate('Loading archive. This may take a moment...<br />', 'Processing...', 1);
       aviewer_flush();
 
-      if ($zip->open("{$store}/{$urlDomain}.zip") === TRUE) {
+      if ($zip->open("{$store}/$urlParts[domain].zip") === TRUE) {
         echo aviewer_basicTemplate('Unzipping. This may take a few moments...<br />', '', 2);
         aviewer_flush();
-        $zip->extractTo("{$cacheStore}");
+        $zip->extractTo($config['cacheStore']);
         $zip->close();
 
         die(aviewer_basicTemplate("Archive Loaded. <a href=\"{$me}?url={$url}\">Redirecting.</a><script type=\"text/javascript\">window.location.reload();</script>", '', 2));
@@ -110,18 +111,20 @@ else { // URL specified
         die(aviewer_basicTemplate("<a href=\"$url\">Redirecting.</a>"));
       }
       else {
-        echo aviewer_basicTemplate('Domain not found: "' . $urlDomain . '"');
+        echo aviewer_basicTemplate('Domain not found: "' . $urlParts['host'] . '"');
         die();
       }
     }
 
     /* TODO: Uncompress */
   }
+  
+  $absPath = $config['cacheStore'] . $urlParts['host'] . $urlParts['path'];
 
   if (is_dir($absPath)) { // Allow (minimal) directory viewing.
     if (is_file("{$absPath}/{$config[homeFile]}")) { // Automatically redirect to the home/index file if it exists in the directory.
-      header("Location: {$me}?url={$urlDomain}{$urlFile}/{$config[homeFile]}");
-      die(aviewer_basicTemplate("<a href=\"{$me}?url={$urlDomain}{$urlFile}/{$config[homeFile]}\">Redirecting</a>"));
+      header("Location: {$me}?url=$urlParts[path]/{$config[homeFile]}");
+      die(aviewer_basicTemplate("<a href=\"{$me}?url={$urlParts[path]}/{$config[homeFile]}\">Redirecting</a>"));
     }
     else {
       $dirFiles = scandir($absPath); // Get all files.
@@ -140,7 +143,7 @@ else { // URL specified
     if (file_exists($absPath)) {
       $contents = file_get_contents($absPath); // Get the file contents.
 
-      $urlFileParts = explode('.', $urlFile);
+      $urlFileParts = explode('.', $urlParts['file']);
       $urlFileExt = $urlFileParts[count($urlFileParts) - 1];
 
       if (!$fileType) {
@@ -164,7 +167,7 @@ else { // URL specified
         finfo_close($finfo);
 
         header('Content-type: ' . $mimeType);
-        if (in_array($urlFileExt, array('zip', 'tar', 'gz', 'bz2', '7z', 'lzma'))) header('Content-Disposition: *; filename="' . filePart($urlFile) . '"');
+        if (in_array($urlFileExt, array('zip', 'tar', 'gz', 'bz2', '7z', 'lzma'))) header('Content-Disposition: *; filename="' . $urlParts['file'] . '"');
 
         echo $contents;
         break;
@@ -172,14 +175,12 @@ else { // URL specified
     }
     else {
       if ($config['passthru']) {
-        if (strpos($url, 'http:') === 0 || strpos($url, 'https:') === 0 || strpos($url, 'ftp:') === 0 || strpos($url, 'mailto:') === 0) $redirectUrl = $url; // If none of the main prefixes exist, we will assume the URL passed does not have a prefix, and will append the "http:" prefix to the base URL.
-        else $redirectUrl = 'http://' . $urlDomain . $urlFile;
-
-        header('Location: ' . $redirectUrl);
-        die(aviewer_basicTemplate("<a href=\"$redirectUrl\">Redirecting.</a>"));
+        header('Location: ' . $url); // Redirect to the URL as originally passed. (Though, if no prefix was available, "http:" will have been added.)
+        die(aviewer_basicTemplate("<a href=\"$url\">Redirecting.</a>"));
       }
-      
-      die(aviewer_basicTemplate('File not found: "' . $absPath . '"'));
+      else {
+        die(aviewer_basicTemplate('File not found: "' . $absPath . '"'));
+      }
     }
   }
 }

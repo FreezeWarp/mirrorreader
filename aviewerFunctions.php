@@ -60,22 +60,21 @@ function aviewer_inCache($domain) {
 /**
  * Formats a file that is included in an archive to be easily processed by the MirrorReader.
  * @global string $me - Current executing file.
- * @global string $urlDomain - The domain of the current archive.
- * @global string $urlDirectory - The directory we are in in the current archive.
+ * @global string $urlParts - The dissected URL we are currently visiting.
  * @global string $config - The configuration for the domain.
  * @param type $file - The file string in the original archive.
  * @return string - New file that can be queried by aviewer.php.
  */
 function aviewer_format($file) { // Attempts to format URLs -- absolute or relative -- so that they can be loaded with the viewer.
-  global $me, $urlDomain, $urlDirectory, $config; // Oh, sue me. I'll make it a class or something later.
+  global $me, $urlParts, $config; // Oh, sue me. I'll make it a class or something later.
   //return $file;
 
-  $urlDirectoryLocal = $urlDirectory;
-  
+  $urlDirectoryLocal = $urlParts['dir'];
+
   if ($config['getHack']) {
     // Encodes URLs that include GET arguments. (PHP5.3 REQUIRED)
     // TODO: Optimise.
-    $getRegex = '/\.(' . implode('|', $config['recognisedExtensions']) . ')\?([a-zA-Z0-9\-\_\*]+)(=([a-zA-Z0-9\-\_\*]+)|)(((\&amp\;|\&)([a-zA-Z0-9\-\_\*]+)(=([a-zA-Z0-9\-\_\*]+)|))+|)/';
+    $getRegex = '/\.(' . implode('|', $config['recognisedExtensions']) . ')\?([a-zA-Z0-9\-\_\*]+)(=([a-zA-Z0-9\-\_\*\%]+)|)(((\&amp\;|\&)([a-zA-Z0-9\-\_\*]+)(=([a-zA-Z0-9\-\_\*\%]+)|))+|)/';
 //return $file;
     if (preg_match($getRegex, $file)) { // Note: We do this check since the /e replacement takes quite a while longer. I don't really know why.
       $file = preg_replace_callback($getRegex, function($m) {
@@ -94,7 +93,7 @@ function aviewer_format($file) { // Attempts to format URLs -- absolute or relat
   if (stripos($file, 'http:') === 0 || stripos($file, 'https:') === 0 || stripos($file, 'mailto:') === 0 || stripos($file, 'ftp:') === 0) { // Domain Included
   }
   elseif (strpos($file, '/') === 0) { // Absolute Path
-    $file = "{$urlDomain}/{$file}";
+    $file = "{$urlParts[host]}/{$file}";
   }
   else {
     while (strpos($file, './') === 0) {
@@ -103,46 +102,52 @@ function aviewer_format($file) { // Attempts to format URLs -- absolute or relat
     while (strpos($file, '../') === 0) {
       $file = preg_replace('/^\.\.\/(.*)/', '$1', $file);
       
-      if ($urlDirectoryLocal) $urlDirectoryLocal = aviewer_dirPart($urlDirectoryLocal); // One case has been found where "../" is used at the root level. The browser, as a result, treats it as a "./" instead. ...I had no fricken clue this was even possible.
+      if ($urlDirectoryLocal) $urlDirectoryLocal = aviewer_filePart($urlDirectoryLocal, 'dir'); // One case has been found where "../" is used at the root level. The browser, as a result, treats it as a "./" instead. ...I had no fricken clue this was even possible.
     }
     
-    $file = "{$urlDomain}/{$urlDirectoryLocal}/{$file}";
+    $file = "{$urlParts[host]}/{$urlDirectoryLocal}/{$file}";
   }
 
-  return "{$me}?url={$file}" . ($config['passthru'] ? '&passthru=1' : '');
+  return "{$me}?url=" . urlencode($file) . ($config['passthru'] ? '&passthru=1' : '');
 }
 
 
 /**
  * Obtains the directory part of a file string.
  * @param string $file - The file.
+ * @param string $part - The part, either "file", "directory", "root", or "nonroot".
  * @return string - The file, with only the directory in the string.
  */
-function aviewer_dirPart($file) { // Obtain the parent directory of a file or directory by analysing its string value. This will not operate on the directory or file itself.
-  $fileParts = explode('/', $file);
-  foreach ($fileParts AS $id => $part) { // Remove all empty elements.
-    if (!$part) unset($fileParts[$id]);
-  }
-
-  array_pop($fileParts); // Note: Because of the previous foreach loop, the array index may be corrupted (e.g. the array will be {0 = ele, 2 = ele}), thus making array_pop the only possible means of removing the last element of the array (as opposed to the count method that may be faster).
-
-  return implode('/', $fileParts);
-}
-
-
-/**
- * Obtains the file part of a file string.
- * @param string $file - The file.
- * @return string - The file, without the directory in the string.
- */
-function aviewer_filePart($file) { // Obtain the file or directory without its parent directory by analysing its string value. This will not operate on the directory or file itself.
+function aviewer_filePart($file, $filePart) { // Obtain the parent directory of a file or directory by analysing its string value. This will not operate on the directory or file itself.
   $fileParts = explode('/', $file);
 
   foreach ($fileParts AS $id => $part) { // Remove all empty elements.
     if (!$part) unset($fileParts[$id]);
   }
-
-  return array_pop($fileParts); // Note: Because of the previous foreach loop, the array index may be corrupted (e.g. the array will be {0 = ele, 2 = ele}), thus making array_pop the only possible means of removing the last element of the array (as opposed to the count method that may be faster).
+   // Note: Because of the previous foreach loop, the array index may be corrupted (e.g. the array will be {0 = ele, 2 = ele}), thus making array_pop and array_push the only possible means of removing the last/first element of the array (as opposed to the count method that may be faster).
+  switch($filePart) {
+    case 'file' :
+    return array_pop($fileParts);
+    break;
+  
+    case 'dir':
+    array_pop($fileParts);
+    return implode('/', $fileParts);
+    break;
+  
+    case 'root':
+    return array_shift($fileParts);
+    break;
+  
+    case 'nonroot':
+    array_shift($fileParts);
+    return implode('/', $fileParts);
+    break;
+  
+    default:
+    throw new Exception('Missing second parameter in aviewer_filePart call.');
+    break;
+  }
 }
 
 
@@ -384,12 +389,12 @@ function aviewer_processHtml($contents) {
 /**
  * Rewrites Javascript
  * @global string $config
- * @global string $urlDomain
+ * @global string $urlParts
  * @param string $contents&&
  * @return string
  */
 function aviewer_processJavascript($contents) {
-  global $config, $urlDomain;
+  global $config, $urlParts;
 
   if (isset($config['jsReplacePre'])) {
     foreach ($config['jsReplacePre'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
@@ -401,7 +406,7 @@ function aviewer_processJavascript($contents) {
     $contents = preg_replace_callback('/(([a-zA-Z0-9\_\-\/]+)(\.(' . implode('|', $config['recognisedExtensions']) . '))[^a-zA-Z0-9])/i', function($m) {
       return aviewer_format($m[1]);
     }, $contents); // Note that if the extension is followed by a letter or integer, it is possibly a part of a JavaScript property, which we don't want to convert.
-    $contents = str_replace('http://' . $urlDomain, $_SERVER['PHP_SELF'] . '?url=' . $urlDomain, $contents); // In some cases, the URL may be dropped directly in. This is an unreliable method of trying to replace it with the equvilent aviewer.php script, and is only used with the eccentric method, since this is rarely used when string-dropped.
+    $contents = str_replace('http://' . $urlParts['host'], $_SERVER['PHP_SELF'] . '?url=' . $urlParts['host'], $contents); // In some cases, the URL may be dropped directly in. This is an unreliable method of trying to replace it with the equvilent aviewer.php script, and is only used with the eccentric method, since this is rarely used when string-dropped.
   }
   else { // Convert strings that contain files ending with suspect extensions.
     $contents = preg_replace_callback('/("|\')(([a-zA-Z0-9\_\-\/]+)\.(' . implode('|', $config['recognisedExtensions']) . '))\1/i', function($m) {
