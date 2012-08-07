@@ -14,6 +14,7 @@ $domainConfiguration = array(
     'scriptDispose' => false, // If enabled, SCRIPTS that are not external will be dropped. This is useful for getting rid of advertisement and tracking code, but should be used with care.
     'scriptHacks' => ['suspectFileString'], // Which script hacks should be used. Script processing is tricky, as there are a million ways things can be done (indeed, URLs could even be encrypted or specially encoded, making it impossible to work with them). Instead, we have four common hacks: 'suspectFileString' and 'suspectFileAnywhere' are mutually exclusive, with the former usually working but not breaking anything, and the latter more likely to both work and break something. Additionally, there are 'suspectDirString' which is more likely to break something, but can work with directories that are placed in strings (it is almost guarenteed to break something if implemented using the anywhere method, due to regex, etc.), and 'suspectDomainAnywhere' which usually won't break anything, but should still be used with caution.
     'removeExtra' => false, // This will remove extra comments. In some sites, it will break things, but for the rest it will increase the execution speed of the program.
+    '301mode' => 'dir', // Heritrix MirrorReader has a lot of trouble with 301s. This is a hack that will fix some instances of this, either "none" (which does nothing) or "dir" which will redirect any file to a directory with the same name and a "1" appended.
       
      'getHack' => true, // GET variables will be modified according to the default MirrorWriter pattern if enabled. This is off by default as it causes some slow down and may not be implemented correctly. (It may later be removed from config and turned on by default.)
      'recognisedExtensions' => ['asp', 'css', 'doc', 'docx', 'gif', 'htm', 'html', 'jpeg', 'jpg', 'js', 'pdf', 'php', 'php4', 'php5', 'png', 'rss', 'txt', 'xml'], // List of recognised extensions.
@@ -55,6 +56,7 @@ $domainConfiguration = array(
   'www.blue-reflections.net' => array(
     'dirtyAttributes' => true,
     'scriptHacks' => ['suspectFileAnywhere'],
+    'removeExtra' => false,
   ),  
   
   'mother3.fobby.net' => array( // Working

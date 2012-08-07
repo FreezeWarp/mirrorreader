@@ -254,6 +254,10 @@ function aviewer_processHtml($contents) {
     $contents = preg_replace('/\<script(.*?)\>(.*?)\<\/script\>/es','"<script$1>" . entitiesHackOuter("$2") . "</script>"', $contents);
   }
 
+//  $contents = preg_replace('/<head(.*?)>(.*?)<\/head>(.*?)<body(.*?)>(.*?)<style(.*?)>(.*?)<\/style>(.*?)<\/body>/is', '<head$1>$2<style$6>$7</style></head>$3<body$4>$5$8</body>', $contents); // Hack to move <style> tags into <head> if they are in <body>, since it will cause problems with loadHtml.
+//  $contents = preg_replace('/<style(.*?)>(.*?)(<\!--|)(.*?)(-->|)(.*?)<\/style>/is', '<style$1>$2$4$6</style>', $contents); // Hack to remove HTML comments from <style> tags, for the same reason.
+  $contents = str_replace('--!>', '-->', $contents); // ...Yeah, same story. (Actually, this seems to be the only one with a problem, but after dealing with those above, I might as well keep them.
+
   libxml_use_internal_errors(true); // Stop the loadHtml call from spitting out a million errors.
   $doc = new DOMDocument(); // Initiate the PHP DomDocument.
   $doc->preserveWhiteSpace = false; // Don't worry about annoying whitespace.

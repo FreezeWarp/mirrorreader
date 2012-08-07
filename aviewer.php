@@ -121,7 +121,42 @@ else { // URL specified
   }
   
   $absPath = $config['cacheStore'] . $urlParts['host'] . $urlParts['path'];
+  $path301 = $urlParts['host'] . '/' . $urlParts['dir'] . '/' . $urlParts['file'] . '1/';
 
+  if ($config['301mode'] == 'dir' && !$_GET['301']) { // Oh God, is this going to be weird...
+    $dirParts = explode('/', $urlParts['path']); // Start by breaking up the directory into individual folders.
+    $dirPartsNew = [];
+    $is301 = false; // We need to set this to true once a substitution has occured, otherwise we'll never stop redirecting.
+
+    foreach ($dirParts AS $index => &$part) { // After doing that, we'll build an array containing only unique directories.
+      if ($part) $dirPartsNew[] = $part;
+    }
+
+    $dirPartsRe = $dirPartsNew; // Here, we'll copy dirPartsNew to a new array. (We could technically skip this in exchange for any semblance of sanity I have left after writing this bit of nonsense.
+    
+    foreach ($dirPartsNew AS $index => $part) { // Next, we run through the array we just created, both reading and making modifications to the mirror array we just created in which the directories will be changed to the "1" version if it exists.
+      $path = implode('/', array_slice($dirPartsRe, 0, $index + 1)); // First, we create the normal path.
+      $array301 = array_slice($dirPartsRe, 0, $index); // Then, we create the modified path.
+      array_push($array301, $dirPartsRe[$index] . 1); // "
+      $path301 = implode('/', $array301);  // "
+
+      if (is_dir($config['cacheStore'] . $urlParts['host'] . '/' . $path301)) {
+        $is301 = true;
+        $dirPartsRe[$index] = $dirPartsRe[$index] . 1;
+      }
+      else {
+        $dirPartsRe[$index] = $dirPartsRe[$index];
+      }
+    }
+    
+    $path301 = implode('/', $dirPartsRe); // And, finally, we implode the modified path and will use it as the 301 path.
+    
+    if (is_dir("{$config['cacheStore']}{$urlParts['host']}/{$path301}") && $is301) {
+      header("Location: {$me}?url={$urlParts['host']}/{$path301}&301");
+      die(aviewer_basicTemplate("<a href=\"{$me}?url={$urlParts['host']}/{$path301}&301\">Redirecting</a>"));
+    }
+  }
+  
   if (is_dir($absPath)) { // Allow (minimal) directory viewing.
     if (is_file("{$absPath}/{$config['homeFile']}")) { // Automatically redirect to the home/index file if it exists in the directory.
       header("Location: {$me}?url={$urlParts['host']}/{$urlParts['path']}/{$config['homeFile']}");
