@@ -32,6 +32,7 @@
 
 require('aviewerConfiguration.php');
 require('aviewerFunctions.php');
+ini_set('pcre.backtrack_limit' , 1000000000);
 error_reporting(E_ALL);
 $data = '';
 
@@ -189,9 +190,9 @@ else { // URL specified
           case 'js':                                         $fileType = 'js';    break;
           default:                                           $fileType = 'other'; break;
         }
-
-        if ($fileType == 'other' && preg_match('/^([\ \n]*)(\<\!DOCTYPE|\<html)/i', $contents)) $fileType = 'html';
       }
+
+      if ($fileType == 'other' && preg_match('/^(\<\!DOCTYPE|\<html)/i', $contents)) $fileType = 'html';
 
       switch ($fileType) {
         case 'html': header('Content-type: text/html');       echo aviewer_processHtml($contents);       break;

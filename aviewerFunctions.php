@@ -245,6 +245,9 @@ function aviewer_processHtml($contents) {
     foreach ($config['htmlReplacePre'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
   }
 
+  $contents = str_replace('--!>', '-->', $contents); // Alter Improper Comment Form. This is known to break things.
+  $contents = str_replace('//-->', '-->', $contents); // Alter Improper Comment Form. This may break things (it is less clear.)
+  
   if ($config['removeExtra']) {
     $contents = preg_replace('/\<\?xml(.+)\?\>/', '', $contents);
     $contents = preg_replace('/\<\!--(.*?)--\>/ism', '', $contents); // Get rid of comments (cleans up the DOM at times, making things faster). We do not remove commnets if they are a part of JavaScript.
@@ -255,8 +258,8 @@ function aviewer_processHtml($contents) {
   }
 
 //  $contents = preg_replace('/<head(.*?)>(.*?)<\/head>(.*?)<body(.*?)>(.*?)<style(.*?)>(.*?)<\/style>(.*?)<\/body>/is', '<head$1>$2<style$6>$7</style></head>$3<body$4>$5$8</body>', $contents); // Hack to move <style> tags into <head> if they are in <body>, since it will cause problems with loadHtml.
-//  $contents = preg_replace('/<style(.*?)>(.*?)(<\!--|)(.*?)(-->|)(.*?)<\/style>/is', '<style$1>$2$4$6</style>', $contents); // Hack to remove HTML comments from <style> tags, for the same reason.
-  $contents = str_replace('--!>', '-->', $contents); // ...Yeah, same story. (Actually, this seems to be the only one with a problem, but after dealing with those above, I might as well keep them.
+//  $contents = preg_replace('/\<style(.*?)\>(.*?)\<\!\-\-(.*?)\-\-\\>(.*?)\<\/style\>/is', '<style$1>$2$3$4</style>', $contents); // Hack to remove HTML comments from <style> tags, for the same reason
+  
 
   libxml_use_internal_errors(true); // Stop the loadHtml call from spitting out a million errors.
   $doc = new DOMDocument(); // Initiate the PHP DomDocument.
@@ -310,11 +313,11 @@ function aviewer_processHtml($contents) {
   }
 
   // Process IMG, VIDEO, AUDIO, IFRAME tags
-  foreach (array('img', 'video', 'audio', 'iframe', 'applet') AS $ele) {
+  foreach (array('img', 'video', 'audio', 'frame', 'iframe', 'applet') AS $ele) {
     $imgList = $doc->getElementsByTagName($ele);
     for ($i = 0; $i < $imgList->length; $i++) {
       if ($imgList->item($i)->hasAttribute('src')) {
-        $imgList->item($i)->setAttribute('src', aviewer_format($imgList->item($i)->getAttribute('src')) . '&type=other');
+        $imgList->item($i)->setAttribute('src', aviewer_format($imgList->item($i)->getAttribute('src')));
       }
     }
   }
