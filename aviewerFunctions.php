@@ -64,9 +64,7 @@ function aviewer_inCache($domain) {
  * @return string - New file that can be queried by aviewer.php.
  */
 function aviewer_format($file) { // Attempts to format URLs -- absolute or relative -- so that they can be loaded with the viewer.
-  return $file;
   global $me, $urlParts, $config; // Oh, sue me. I'll make it a class or something later.
-  //return $file;
 
   $urlDirectoryLocal = $urlParts['dir'];
 
@@ -260,7 +258,6 @@ function aviewer_processHtml($contents) {
 
 //  $contents = preg_replace('/<head(.*?)>(.*?)<\/head>(.*?)<body(.*?)>(.*?)<style(.*?)>(.*?)<\/style>(.*?)<\/body>/is', '<head$1>$2<style$6>$7</style></head>$3<body$4>$5$8</body>', $contents); // Hack to move <style> tags into <head> if they are in <body>, since it will cause problems with loadHtml.
 //  $contents = preg_replace('/\<style(.*?)\>(.*?)\<\!\-\-(.*?)\-\-\\>(.*?)\<\/style\>/is', '<style$1>$2$3$4</style>', $contents); // Hack to remove HTML comments from <style> tags, for the same reason
-  
 
   libxml_use_internal_errors(true); // Stop the loadHtml call from spitting out a million errors.
   $doc = new DOMDocument(); // Initiate the PHP DomDocument.
@@ -269,42 +266,13 @@ function aviewer_processHtml($contents) {
   $doc->formatOutput = false;
   $doc->loadHTML($contents); // Load the HTML.
   
-//  $doc2 = new DOMDocument();
-//  $doc2->loadHTML("<base href=\"pi\" />"); // Load the HTML.
-//  $node = $doc2->createElement("base");
-//  $node->setAttribute('href', "{$me}?url={$urlParts['host']}");
-//  $head = $doc->getElementsByTagName('head');
-//  foreach ($head AS $headNode) {
-//    $doc->appendChild($node);
-//  }
-//  $head = $doc->getElementsByTagName('head');
-//  foreach ($head AS $headNode) {
-//    foreach ($doc2)
-//    $doc->appendChild($node);
-//  }
-  
-//  $head = $doc->getElementsByTagName("head")[0];
-  
-//  $base = $doc->createElement('base');
-//  $base->setAttribute('href', "{$me}?url={$urlParts['host']}");
-  
-//  $item = $doc->createElement("item");
-//  $item->apendChild($title);
-  
-//  $head->appendChild($item);  
- 
-//  $xml = new DomDocument();
-//  $xml->loadXml('<base href="fun" />');    
-
-  //grab a node
-  
   if ($config['baseMethod']) {
     $xpath = new DOMXPath($doc);
     $results = $xpath->query('head');
     $head = $results->item(0);
 
     $base = $doc->createElement('base');
-    $base->setAttribute('href', "{$me}?url={$urlParts['host']}/");
+    $base->setAttribute('href', "http://localhost/{$me}?url={$urlParts['host']}/");
 
     $head->appendChild($base);
 
