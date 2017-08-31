@@ -15,197 +15,119 @@
    limitations under the License.
 */
 
-/* Check http://code.google.com/p/mirrorreader/w/list for help. */
 
+/* Current support notes:
+ * General Pathing
+   * Handles absolute and relative paths (incl. "../" and "./" directories)
+   * Handles paths including domains without issue
+   * Handles most pathing quirks -- e.g. starting with //, ?, #, etc.
+ * HTML
+   * Handles <base> tags
+   * Handles all common attributes, e.g. <a href>, <script src>, <link href>, <img src>, and so-on.
+   * Handles <img srcset>, <source>
+   * Handles <video poster>
+   * Handles <body background>, <table background>, <tr background>, <td background>
+ * CSS
+   * Handles URL()
+ * Javascript
+   * Is capable of varying degrees of file detection in strings.
+ * Misc
+   * Detects & removes a small handful of behaviours that are no longer fully supported on modern browsers, e.g. IE comment hacks.
+   * Supports ZIP files if they are properly encoded (no single "root" directory, etc.)
+   * Handles mirror writer's somewhat annoying behaviour of creating directories with an appended 1 if a file of that name already existed. (Not supported in ZIPs yet, however.)
+
+ * Future Plans:
+ * I'd like to enable better viewing of files in the browser directly. For instance, viewing ZIPs.
+ * Searching is essential, but is going to be difficult. It would definitely be some form of a keyword search, probably connected to an SQLlite database.
+
+ * The patcher script:
+ * The patcher script exists to complete/fix/cleanup MirrorWriter mirrors. It's not perfect, but because it relies on the MirrorReader class's parsing of things, it is guaranteed to know if there's a file MirrorReader is trying to access but doesn't have mirrored.
+ * Of particular note, and its original reason for existence, is that it can parse out srcset attributes that are otherwise ignored by heritrix. */
+
+error_reporting(E_ALL);
+$store = '/Library/';
+ini_set('display_errors', 'On');
 require('aviewerConfiguration.php');
 require('aviewerFunctions.php');
 ini_set('pcre.backtrack_limit' , 1000000000);
-error_reporting(E_ALL);
-$data = '';
 
-$url = isset($_GET['url']) ? (string) urldecode($_GET['url']) : false; // Get the URL to display from GET. Note: URL must be functional in a web browser for it to be parsed. (In other words, broken URLs, like "http:google.com" are not fixed in the script. This is an archive viewer, not a Frankenstein machine.)
-$passthru = isset($_GET['passthru']) ? $_GET['passthru'] : false;
-$fileType = isset($_GET['type']) ? (string) $_GET['type'] : false; // Get the URL to display from GET.
-$me = $_SERVER['PHP_SELF']; // This file.
 
-if ($url === false) { // No URL specified.
-  $fileScan = scandir($store); // Read the directory and return each file in the form of an array.
-  
-  $data = '';
+if (!isset($_GET['url'])) { // No URL specified.
+    $fileScan = scandir($store); // Read the directory and return each file in the form of an array.
+    $data = '';
 
-  foreach ($fileScan AS $domain) { // List each of the stored domains.
-    if (aviewer_isSpecial($domain)) continue; // Don't show ".", "..", etc.
-    
-    if (is_dir("{$store}/{$domain}") || substr($domain, -3, 3) == 'zip') { // Only show ZIPed files and directories.
-      $domainNoZip = aviewer_stripZip($domain); // Domains can be zipped initially, so remove them if needed.
-      $data .= "<a href=\"{$me}?url={$domainNoZip}/{$homeFile}\">{$domainNoZip}</a><br />";
+    foreach ($fileScan AS $domain) { // List each of the stored domains.
+        if (aviewer_isSpecial($domain)) continue; // Don't show ".", "..", etc.
+
+        if (is_dir("{$store}/{$domain}") || substr($domain, -3, 3) == 'zip') { // Only show ZIPed files and directories.
+            $domainNoZip = aviewer_stripZip($domain); // Domains can be zipped initially, so remove them if needed.
+            $data .= "<a href=\"{$me}?url={$domainNoZip}/\">{$domainNoZip}</a><br />";
+        }
     }
-  }
 
-  echo aviewer_basicTemplate($data, 'Choose a Domain');
+    echo aviewer_basicTemplate($data, 'Choose a Domain');
 }
 
 else { // URL specified
-  if (stripos($url, 'http:') !== 0 && stripos($url, 'https:') !== 0 && stripos($url, 'mailto:') !== 0 && stripos($url, 'ftp:') !== 0) { // Domain Not Included, Add It
-    $url = 'http://' . $url;
-  }
+    $file = ArchiveReaderFactory($_GET['url']);
 
-  $urlParts = parse_url($url);
-  while(strpos($urlParts['path'], '//') !== false) $urlParts['path'] = str_replace('//', '/', $urlParts['path']); // Get rid of excess slashes.
-
-  $urlParts['dir'] = aviewer_filePart($urlParts['path'], 'dir') ?: '';
-  $urlParts['file'] = aviewer_filePart($urlParts['path'], 'file') ?: '';
-
-  // Get proper configuration.
-  if (isset($domainConfiguration[$urlParts['host']])) $config = array_merge($domainConfiguration['default'], $domainConfiguration[$urlParts['host']]);
-  else $config = $domainConfiguration['default'];
-
-  /* Handle $config Redirects */
-  if (isset($config['redirect'])) {
-    foreach ($config['redirect'] AS $find => $replace) {
-      if (strpos($urlParts['host'] . $urlParts['path'], $find) === 0) {
-        $newLocation = str_replace($find, $replace, $urlParts['host'] . $urlParts['path']);
-        header("Location: {$me}?url={$newLocation}");
-        die(aviewer_basicTemplate("<a href=\"{$me}?url={$newLocation}\">Redirecting.</a>"));
-      }
-    }
-  }
-
-  if (!aviewer_inCache($urlParts['host'])) {
-    $storeScan = scandir($store); // Scan the directory that stores offline domains.
-    if (in_array($urlParts['host'], $storeScan)) { // Check to see if the domain is in the store.
-      symlink("{$store}/{$urlParts['host']}", "{$config['cacheStore']}/{$urlParts['host']}") or die(aviewer_basicTemplate("Could not create symlink. Are directory permissions set correctly?<br /><br />Source: {$store}/{$urlParts['host']}/<br />Link Destination: {$config['cacheStore']}/{$urlParts['host']}/", '<span class="error">Error</span>')); // Note, because I couldn't figure it out: symlink params can not contain end slashes
-    }
-    elseif (in_array($urlParts['host'] . '.zip', $storeScan)) {
-      $zip = new ZipArchive;
-
-      echo aviewer_basicTemplate('Loading archive. This may take a moment...<br />', 'Processing...', 1);
-      aviewer_flush();
-
-      if ($zip->open("{$store}/$urlParts[host].zip") === TRUE) {
-        echo aviewer_basicTemplate('Unzipping. This may take a few moments...<br />', '', 2);
-        aviewer_flush();
-        $zip->extractTo($config['cacheStore']);
-        $zip->close();
-
-        die(aviewer_basicTemplate("Archive Loaded. <a href=\"{$me}?url={$url}\">Redirecting.</a><script type=\"text/javascript\">window.location.reload();</script>", '', 2));
-      }
-      else {
-        die('Zip Extraction Failed.');
-      }
-    }
-    else { // The domain isn't in the store.
-      if ($config['passthru'] || $passthru) {
-        header('Location: ' . $url); // Note: This redirects to the originally embedded URL (thus, we aren't touching it at all).
-        die(aviewer_basicTemplate("<a href=\"$url\">Redirecting.</a>"));
-      }
-      else {
-        echo aviewer_basicTemplate('Domain not found: "' . $urlParts['host'] . '"');
-        die();
-      }
+    if (isset($_GET['type'])) $file->setFileType($_GET['type']);
+    if ($file->error) {
+        die(aviewer_basicTemplate('Error: ' . $file->error . ': "' . $file->getFileStore() . '" (URL: "' . $_GET['url'] . '" => ' . $file->getFile() . '")'));
     }
 
-    /* TODO: Uncompress */
-  }
-  
-  $absPath = $config['cacheStore'] . $urlParts['host'] . $urlParts['path'];
-  $path301 = $urlParts['host'] . '/' . $urlParts['dir'] . '/' . $urlParts['file'] . '1/';
+    // Get proper configuration.
 
-  if ($config['301mode'] == 'dir' && !$_GET['301']) { // Oh God, is this going to be weird...
-    $dirParts = explode('/', $urlParts['path']); // Start by breaking up the directory into individual folders.
-    $dirPartsNew = [];
-    $is301 = false; // We need to set this to true once a substitution has occured, otherwise we'll never stop redirecting.
-
-    foreach ($dirParts AS $index => &$part) { // After doing that, we'll build an array containing only unique directories.
-      if ($part) $dirPartsNew[] = $part;
-    }
-
-    $dirPartsRe = $dirPartsNew; // Here, we'll copy dirPartsNew to a new array. (We could technically skip this in exchange for any semblance of sanity I have left after writing this bit of nonsense.
-    
-    foreach ($dirPartsNew AS $index => $part) { // Next, we run through the array we just created, both reading and making modifications to the mirror array we just created in which the directories will be changed to the "1" version if it exists.
-      $path = implode('/', array_slice($dirPartsRe, 0, $index + 1)); // First, we create the normal path.
-      $array301 = array_slice($dirPartsRe, 0, $index); // Then, we create the modified path.
-      array_push($array301, $dirPartsRe[$index] . 1); // "
-      $path301 = implode('/', $array301);  // "
-
-      if (is_dir($config['cacheStore'] . $urlParts['host'] . '/' . $path301)) {
-        $is301 = true;
-        $dirPartsRe[$index] = $dirPartsRe[$index] . 1;
-      }
-      else {
-        $dirPartsRe[$index] = $dirPartsRe[$index];
-      }
-    }
-    
-    $path301 = implode('/', $dirPartsRe); // And, finally, we implode the modified path and will use it as the 301 path.
-    
-    if (is_dir("{$config['cacheStore']}{$urlParts['host']}/{$path301}") && $is301) {
-      header("Location: {$me}?url={$urlParts['host']}/{$path301}&301");
-      die(aviewer_basicTemplate("<a href=\"{$me}?url={$urlParts['host']}/{$path301}&301\">Redirecting</a>"));
-    }
-  }
-  
-  if (is_dir($absPath)) { // Allow (minimal) directory viewing.
-    if (is_file("{$absPath}/{$config['homeFile']}")) { // Automatically redirect to the home/index file if it exists in the directory.
-      header("Location: {$me}?url={$urlParts['host']}/{$urlParts['path']}/{$config['homeFile']}");
-      die(aviewer_basicTemplate("<a href=\"{$me}?url={$urlParts['host']}/{$urlParts['path']}/{$config['homeFile']}\">Redirecting</a>"));
-    }
-    else {
-      $dirFiles = scandir($absPath); // Get all files.
-      
-      $data = '';
-
-      foreach ($dirFiles AS $file) { // List each one.
-        if (aviewer_isSpecial($file)) continue; // Don't show ".", "..", etc.
-        $data .= "<a href=\"{$me}?url={$url}/{$file}\">$file</a><br />";
-      }
-
-      echo aviewer_basicTemplate($data, "Directory \"{$url}\"");
-    }
-  }
-  else {
-    if (file_exists($absPath)) {
-      $contents = file_get_contents($absPath); // Get the file contents.
-
-      $urlFileParts = explode('.', $urlParts['file']);
-      $urlFileExt = $urlFileParts[count($urlFileParts) - 1];
-
-      if (!$fileType) {
-        switch ($urlFileExt) { // Attempt to detect file type by extension.
-          case 'html': case 'htm': case 'shtml': case 'php': $fileType = 'html';  break;
-          case 'css':                                        $fileType = 'css';   break;
-          case 'js':                                         $fileType = 'js';    break;
-          default:                                           $fileType = 'other'; break;
+    /*  if (!aviewer_inCache($urlParts['host'])) {
+        $storeScan = scandir($store); // Scan the directory that stores offline domains.
+        if (in_array($urlParts['host'], $storeScan)) { // Check to see if the domain is in the store.
+          symlink("{$store}/{$urlParts['host']}", "{$config['cacheStore']}/{$urlParts['host']}") or die(aviewer_basicTemplate("Could not create symlink. Are directory permissions set correctly?<br /><br />Source: {$store}/{$urlParts['host']}/<br />Link Destination: {$config['cacheStore']}/{$urlParts['host']}/", '<span class="error">Error</span>')); // Note, because I couldn't figure it out: symlink params can not contain end slashes
         }
-      }
-      
-      if ($fileType == 'other' && preg_match('/^([\ \n]*)(\<\!DOCTYPE|\<html)/i', $contents)) $fileType = 'html';
+        elseif (in_array($urlParts['host'] . '.zip', $storeScan)) {
+          $zip = new ZipArchive;
 
-      switch ($fileType) {
-        case 'html': header('Content-type: text/html');       echo aviewer_processHtml($contents);       break;
-        case 'css':  header('Content-type: text/css');        echo aviewer_processCSS($contents);        break;
-        case 'js':   header('Content-type: text/javascript'); echo aviewer_processJavascript($contents); break;
-        case 'other':
-        $finfo = finfo_open(FILEINFO_MIME_TYPE); // return mime type ala mimetype extension
-        $mimeType = finfo_file($finfo, $absPath);
-        finfo_close($finfo);
+          echo aviewer_basicTemplate('Loading archive. This may take a moment...<br />', 'Processing...', 1);
+          aviewer_flush();
 
-        header('Content-type: ' . $mimeType);
-        if (in_array($urlFileExt, array('zip', 'tar', 'gz', 'bz2', '7z', 'lzma'))) header('Content-Disposition: *; filename="' . $urlParts['file'] . '"');
+          if ($zip->open("{$store}/$urlParts[host].zip") === TRUE) {
+            echo aviewer_basicTemplate('Unzipping. This may take a few moments...<br />', '', 2);
+            aviewer_flush();
+            $zip->extractTo($config['cacheStore']);
+            $zip->close();
 
-        echo $contents;
-        break;
-      }
+            die(aviewer_basicTemplate("Archive Loaded. <a href=\"{$me}?url={$url}\">Redirecting.</a><script type=\"text/javascript\">window.location.reload();</script>", '', 2));
+          }
+          else {
+            die('Zip Extraction Failed.');
+          }
+        }
+        else { // The domain isn't in the store.
+          if ($config['passthru'] || $passthru) {
+            header('Location: ' . $url); // Note: This redirects to the originally embedded URL (thus, we aren't touching it at all).
+            die(aviewer_basicTemplate("<a href=\"$url\">Redirecting.</a>"));
+          }
+          else {
+            echo aviewer_basicTemplate('Domain not found: "' . $urlParts['host'] . '"');
+            die();
+          }
+        }
+      }*/
+
+
+
+    if ($file->isDir || isset($_GET['showDir'])) { // Allow (minimal) directory viewing. TODO: zips
+        $data = '';
+
+        foreach (scandir($file->dirPath) AS $fileName) { // List each one.
+            if (ArchiveReader::isSpecial($fileName)) continue; // Don't show ".", "..", etc.
+
+            $data .= "<a href=\"{$file->scriptDir}?url=" . $file->getFile() . "/{$fileName}\">$fileName</a><br />";
+        }
+
+        echo aviewer_basicTemplate($data, "Directory \"{$file->getFile()}\"");
     }
     else {
-      if ($config['passthru']) {
-        header('Location: ' . $url); // Redirect to the URL as originally passed. (Though, if no prefix was available, "http:" will have been added.)
-        die(aviewer_basicTemplate("<a href=\"$url\">Redirecting.</a>"));
-      }
-      else {
-        die(aviewer_basicTemplate('File not found: "' . $absPath . '"'));
-      }
+        $file->echoContents();
     }
-  }
 }
 ?>
