@@ -57,7 +57,7 @@ if (!isset($_GET['url'])) { // No URL specified.
     $data = '';
 
     foreach ($fileScan AS $domain) { // List each of the stored domains.
-        if (aviewer_isSpecial($domain)) continue; // Don't show ".", "..", etc.
+        if (ArchiveReader::isSpecial($domain)) continue; // Don't show ".", "..", etc.
 
         if (is_dir("{$store}/{$domain}") || substr($domain, -3, 3) == 'zip') { // Only show ZIPed files and directories.
             $domainNoZip = aviewer_stripZip($domain); // Domains can be zipped initially, so remove them if needed.
