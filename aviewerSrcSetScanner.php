@@ -11,9 +11,13 @@
  */
 
 $time = microtime(true);
+ob_end_flush();
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 ini_set('display_errors', 'On');
 require('aviewerFunctions.php');
+set_time_limit(0);
 require_once('aviewerConfiguration.php');
 $domainConfiguration['default']['scriptHacks'] = [];
 $resource = $_GET['resource'];
@@ -21,13 +25,38 @@ $protocol = $_GET['protocol'] ?? 'http';
 $match = $_GET['match'] ?? '.*';
 $path = realpath('/Library/' . $resource);
 $ignore = apcu_exists("av_srcset_ignore") ? apcu_fetch("av_srcset_ignore") : [];
-//$writeFile = fopen('srcSetLog.' . rtrim($resource, '/') . '.' . microtime() . '.html', "a") or die("Unable to open write file!");
-$writeFile = fopen("php://output", "w");
+$writeFile = fopen('srcSetLog.' . rtrim($resource, '/') . '.' . microtime() . '.html', "a") or die("Unable to open write file!");
+//$writeFile = fopen("php://output", "w");
 $successFile = fopen('srcSetLog.' . rtrim($resource, '/') . '.successes.txt', "a") or die("Unable to open write file!");
 $failFile = fopen('srcSetLog.' . rtrim($resource, '/') . '.errors.txt', "a") or die("Unable to open write file!");
 
 $_GET['start'] = ($_GET['start'] ?? 0);
 $_GET['end'] = ($_GET['end'] ?? 300);
+
+function mkdir_index($dirName) {
+    global $resource, $ignore, $writeFile, $match, $successFile, $failFile;
+    
+    if (!mkdir($dirName, 0777, true)) {
+        $baseFile = $dirName;
+
+        while (!is_file($baseFile) && $baseFile !== '') {
+            $baseFile = rtrim(dirname($baseFile), '/');
+        }
+
+        if ($baseFile !== '') {
+            rename($baseFile, $baseFile . '~temp') or die("Could not rename $baseFile to $baseFile~temp");
+            mkdir($dirName, 0777, true) or die('Mkdir failed. Temp file leftover: ' . $baseFile . '~temp');
+            rename($baseFile . '~temp', $baseFile . '/index.html') or die("Could not rename $baseFile~temp to $baseFile/index.html");
+
+            fwrite($successFile, "$dirName: created $dirName directory, moving in $baseFile as $baseFile/index.html\n");
+            
+            return true;
+        }
+        else return false;
+    }
+    
+    return true;
+}
 
 function processFile($srcUrl, $lastFile = false) {
     global $resource, $ignore, $writeFile, $match, $successFile, $failFile;
@@ -50,9 +79,10 @@ function processFile($srcUrl, $lastFile = false) {
         return;
 
     // Domain Exceptions
-    if (stripos($srcFile->getFile(), "mediawiki.org/") !== false ||
+    if (stripos($srcFile->getFile(), "wikipedia.org/") !== false ||
+        stripos($srcFile->getFile(), "youtube.com/") !== false ||
+        stripos($srcFile->getFile(), "mediawiki.org/") !== false ||
         stripos($srcFile->getFile(), "facebook.com/") !== false ||
-        stripos($srcFile->getFile(), "google.com/") !== false ||
         stripos($srcFile->getFile(), "reddit.com/") !== false ||
         stripos($srcFile->getFile(), "twitter.com/") !== false ||
         stripos($srcFile->getFile(), "tumblr.com/share/") !== false ||
@@ -100,8 +130,12 @@ function processFile($srcUrl, $lastFile = false) {
     }
 
     // GET Ban
-    elseif (preg_match("/(&|\\?)(view=next|view=previous|replytocom|advertisehereid=|oldid|mobileaction|veaction=edit|action=pm|action=formcreate|action=edit|action=create|action=history|action=info|action=printpage|action=register|action=lostpw|postingmode=|printable|parent=|redirect)/", $srcFile->getFile()) !== 0) {
+    elseif (preg_match("/(&|\\?)(p=|sort=|do=add|do=sendtofriend|view=next|view=previous|replytocom|advertisehereid=|oldid|mobileaction|veaction=edit|action=pm|action=formcreate|action=edit|action=create|action=history|action=info|action=printpage|action=register|action=lostpw|postingmode=|printable|parent=|redirect)/", $srcFile->getFile()) !== 0) {
         $status = 'fail [bad get]';
+        $color = 'orange';
+    }
+    elseif (preg_match("/(newreply|sendmessage|newthread|cron|external|private|printthread|register|search|showpost)\.php/", $srcFile->getFile()) !== 0) {
+        $status = 'fail [bad page]';
         $color = 'orange';
     }
     elseif (preg_match("/$match/", $srcFile->getFile()) !== 1) {
@@ -114,28 +148,9 @@ function processFile($srcUrl, $lastFile = false) {
     }
     else {
         if (!is_dir(dirname($destFile))) {
-            if (!mkdir(dirname($destFile), 0777, true)) {
-                $baseFile = $destFile;
-
-                while (!is_file($baseFile) && $baseFile !== '') {
-                    $baseFile = rtrim(dirname($destFile), '/');
-                }
-
-                if ($baseFile !== '') {
-                    rename($baseFile, $baseFile . '~temp');
-                    mkdir($baseFile, 0777, true) or die('Mkdir failed. Temp file leftover: ' . $baseFile . '~temp');
-                    rename($baseFile . '~temp', $baseFile . '/index.html');
-
-                    fwrite($successFile, "$destFile: created $baseFile directory, moving in $baseFile as $baseFile/index.html\n");
-
-                    if (!is_dir(dirname($destFile)) && !mkdir(dirname($destFile), 0777, true)) {
-                        die('Mkdir failed: ' . dirname($destFile));
-                    }
-                }
-                else {
-                    $status = 'fail [direrror]';
-                    $color = 'red';
-                }
+            if (!mkdir_index(dirname($destFile))) {
+                $status = 'fail [direrror]';
+                $color = 'red';
             }
         }
 
@@ -162,17 +177,17 @@ function processFile($srcUrl, $lastFile = false) {
             if ($destFile != $srcFile->fileStore301less && !file_exists(dirname($srcFile->fileStore301less))) {
                 if (!is_dir(dirname($srcFile->fileStore301less)) && dirname($destFile) != dirname($srcFile->fileStore301less)) {
                     if (!is_dir(dirname(dirname($srcFile->fileStore301less))))
-                        mkdir(dirname(dirname($srcFile->fileStore301less)), 0777, true) or die('Could not create directory: ' . dirname($srcFile->fileStore301less));
+                        mkdir(dirname(dirname($srcFile->fileStore301less)), 0777, true) or die('Could not create directory: ' . dirname(dirname($srcFile->fileStore301less)));
 
-                    fwrite($successFile, "$srcUrl: renamed 301 directory " . dirname($destFile) . " to " . dirname($srcFile->fileStore301less) . "\n");
                     rename(dirname($destFile), dirname($srcFile->fileStore301less)) or die("Failed to rename 301 dir " . dirname($destFile) . " to " . dirname($srcFile->fileStore301less));
+                    fwrite($successFile, "$srcUrl: renamed 301 directory " . dirname($destFile) . " to " . dirname($srcFile->fileStore301less) . "\n");
                 }
                 else {
                     if (!is_dir(dirname($srcFile->fileStore301less)))
                         mkdir(dirname($srcFile->fileStore301less), 0777, true) or die('Could not create directory: ' . dirname($srcFile->fileStore301less));
 
-                    fwrite($successFile, "$srcUrl: renamed 301 file $destFile to " . $srcFile->fileStore301less . "\n");
                     rename($destFile, $srcFile->fileStore301less) or die("Failed to rename 301 file $destFile to " . $srcFile->fileStore301less);
+                    fwrite($successFile, "$srcUrl: renamed 301 file $destFile to " . $srcFile->fileStore301less . "\n");
                 }
 
                 $status = 'renamed [' . $srcFile->fileStore301less . ']';
@@ -244,6 +259,11 @@ function processFile($srcUrl, $lastFile = false) {
                             $color = 'green';
                         }
                     }
+                    
+                    elseif (file_put_contents($destFile, $path)) {
+                        $status = 'success';
+                        $color = 'green';
+                    }
 
                 }
                 elseif (!is_file($destFile) && is_dir($destFile) && !file_exists("$destFile/index.html")) {
@@ -276,7 +296,7 @@ function processFile($srcUrl, $lastFile = false) {
     fwrite($writeFile, "<tr style='color:$color;'><td>" . $srcUrl . "</td><td>" . $destFile . "</td><td>" . $status . "</td></tr>");
 
     if ($color === 'green') {
-        usleep(500000);
+        usleep(1000000);
         fwrite($successFile, "$lastFile\t$srcUrl\t$destFile\t$status\n");
 
         fwrite($writeFile, "<tr><th colspan=4>$destFile (decended):</th></tr>");
@@ -294,49 +314,10 @@ $objects = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($path), 
 
 $j = 0;
 $domainReader = new ArchiveReader($protocol . '://' . $resource);
+
 fwrite($writeFile, '<table>');
 foreach($objects AS $name => $object) {
     if (strpos($name, "data:") !== false) continue;
-
-    /* TODO: these should be a seperate step entirely */
-    if (!is_file($name)) {
-        if (is_dir($name) && is_file($name . '1') && !is_file($name . '/index.html'))
-            if (rename($name . '1', $name . '/index.html')) {
-                fwrite($writeFile, "Renamed file {$name}1 to {$name}/index.html<br />");
-                fwrite($successFile, "Renamed file {$name}1 to {$name}/index.html\n");
-            }
-            else
-                die('Rename failed.');
-
-        continue;
-    }
-
-    elseif (is_file($name) && is_dir("{$name}1")) {
-        rename($name, "{$name}1/index.html") or die("Failed to rename $name to {$name}1/index.html");
-
-        if (rename("{$name}1", $name)) {
-            fwrite($writeFile, "Renamed directory {$name}1 to {$name} and moved in index.html.<br />");
-            fwrite($successFile, "Renamed directory {$name}1 to {$name} and moved in index.html.\n");
-            $name = "{$name}/index.html";
-        }
-        else
-            die("Rename from {$name}1 to $name failed. index.html file was still moved in.");
-    }
-
-    elseif (preg_match('/(?|&)(' . implode('|', $domainReader->config['ignoreGETs']) . ')(=.*?)(&|$)/', $name)) {
-        $newName = preg_replace_callback('/(\?|&)(' . implode('|', $domainReader->config['ignoreGETs']) . ')(=.*?)(&|$|\.)/', function($match) {
-            return ($match[4] === '&' ? $match[1] : $match[4]);
-        }, $name);
-
-        rename($name, $newName) or die("Could not rename $name to $newName");
-
-        fwrite($writeFile,  "Renamed $name to $newName<br />");
-        fwrite($successFile, "Renamed $name to $newName\n");
-
-        $name = $newName;
-    }
-
-
 
     $path_parts = pathinfo($name);
     if (strpos($name, 'File:') === false &&
@@ -363,5 +344,5 @@ fclose($writeFile);
 apcu_store("av_srcset_ignore", $ignore);
 
 if (!isset($_GET['stop']))
-    echo '<script type="text/javascript">window.location = "aviewerSrcSetScanner.php?protocol=' . $_GET['protocol'] . '&resource=' . $_GET['resource'] . '&match=' . rawurlencode($_GET['match']) . '&start=' . ($_GET['start'] + ($_GET['end'] - $_GET['start'])) . '&end=' . ($_GET['end'] + ($_GET['end'] - $_GET['start'])) . '";</script>';
+    echo '<script type="text/javascript">window.location = "aviewerSrcSetScanner.php?protocol=' . $_GET['protocol'] . '&resource=' . $_GET['resource'] . '&match=' . rawurlencode($_GET['match'] ?? '') . '&start=' . ($_GET['start'] + ($_GET['end'] - $_GET['start'])) . '&end=' . ($_GET['end'] + ($_GET['end'] - $_GET['start'])) . '";</script>';
 ?>
