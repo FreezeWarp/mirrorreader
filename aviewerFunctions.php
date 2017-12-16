@@ -445,6 +445,9 @@ class ArchiveReader {
         if (stripos($url, 'data:') === 0) // Do not process data: URIs
             return $url;
 
+        if (stripos($url, 'javascript:') === 0) // Do not process javascript: URIs
+            return 'javascript:' . $this->processJavascript(substr($url, 11));
+
         if (strpos($url, '#') === 0) // Hashes can be left alone, when they are on their own.
             return $url;
 
