@@ -1,5 +1,5 @@
 <?php
-$store = '/User/Websites/'; // Configuration variable for where the domains are stored offline.
+$store = '/Library/'; // Configuration variable for where the domains are stored offline.
 
 
 
@@ -28,13 +28,13 @@ $domainConfiguration = array(
 
         'customSrcAttributes' => ['data-src'], // This is a list of custom attributes containing URLs that should be parsed. data-src is used be Wikia.
 
-        'ignoreGETs' => ['PHPSESSID', 'sid', 'highlight'],
+        'ignoreGETs' => ['PHPSESSID', 'sid', 'highlight', 's'],
 
         // Heritrix MirrorReader has a lot of trouble with 301s. This is a hack that will fix some instances of this, either "none" (which does nothing) or "dir" which will redirect any file to a directory with the same name and a "1" appended.
         // Note that the fixer script will generally remove most 301s, so after running it on a site you can set this parameter to none for a modest speed boost.
         '301mode' => 'dir',
 
-        'recognisedExtensions' => ['asp', 'css', 'doc', 'docx', 'gif', 'htm', 'html', 'jpeg', 'jpg', 'js', 'pdf', 'php', 'php4', 'php5', 'png', 'rss', 'txt', 'xml'], // List of recognised extensions.
+        'recognisedExtensions' => ['asp', 'css', 'doc', 'docx', 'gif', 'htm', 'html', 'jpeg', 'jpg', 'js', 'pdf', 'php', 'png', 'rss', 'txt', 'xml'], // List of recognised extensions.
 
         'cacheStore' => '/var/www/cache/',
 
@@ -45,7 +45,11 @@ $domainConfiguration = array(
     ),
 
     'www.youtube.com' => array(
-         //'passthru' => true,
+         'passthru' => true,
+    ),
+    
+    'youtube.com' => array(
+         'passthru' => true,
     ),
 
     'arstechnica.com' => array(
@@ -110,13 +114,6 @@ $domainConfiguration = array(
         'redirect' => array(
             'www.glitchcity.info' => 'glitchcity.info',
         )
-    ),
-
-    /* working 100% */
-    'alicesoft.wikia.com' => array(
-        'scriptHacks' => [
-            'removeAll',
-        ],
     ),
 
     'ajax.googleapis.com' => array(
