@@ -12,15 +12,15 @@ MirrorReader generally works with most MirrorWriter-written archives out-of-the-
 MirrorReader parses HTML, Javascript, and CSS to try and transform a website's original URL to one passed to the MirrorReader program. It uses several techniques for doing so:
 
 1. HTML - Almost all HTML is correctly processed, including malformed HTML. The following HTML elements are processed:
-  a. <link>'s href attribute (if <link>'s type attribute is "text/css" and rel attribute is "stylesheet")
-  b. <script>'s src attribute
-  c. <img>, <video>, <audio>, <source>, <frame>, <iframe>, <applet>'s src attributes
-  d. <img>'s srcset attribute
-  e. <a>, <area>'s href attribute
-  f. <body>, <table>, <td>, and <th>'s background attribute
-  g. <meta http-equiv> refresh
-  h. <option> value attribute, on a per-site basis
-  i. Inline <script> tags, <a href="javascript:..."> tags, and all element's event attributes (onclick, onmouseover, etc.) are processed for Javascript, though the event attributes are disabled by default for performance reasons.
-  j. Inline <style> tags are processed for CSS.
+  * <link>'s href attribute (if <link>'s type attribute is "text/css" and rel attribute is "stylesheet")
+  * <script>'s src attribute
+  * <img>, <video>, <audio>, <source>, <frame>, <iframe>, <applet>'s src attributes
+  * <img>'s srcset attribute
+  * <a>, <area>'s href attribute
+  * <body>, <table>, <td>, and <th>'s background attribute
+  * <meta http-equiv> refresh
+  * <option> value attribute, on a per-site basis
+  * Inline <script> tags, <a href="javascript:..."> tags, and all element's event attributes (onclick, onmouseover, etc.) are processed for Javascript, though the event attributes are disabled by default for performance reasons.
+  * Inline <style> tags are processed for CSS.
 2. Javascript - Because it is hard to consistently extract URLs from Javascript, MirrorReader supporters several modes for Javascript extraction, which can be enabled on a per-site basis. By default, it will transform any Javascript string that appears to contain a valid file. It can also search for what appear to be valid directories in Javascript strings, and what appear to be valid files anywhere in the Javascript body, though the latter two are more prone to errors. Finally, it can be configured to remove all Javascript from a site and activate all of a site's [noscript](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/noscript) nodes.
 3. CSS - CSS processing is simple: search for an process [url()](https://developer.mozilla.org/en-US/docs/Web/CSS/url) tags. MirrorReader is smart, and will not process [data: URIs](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URIs).
