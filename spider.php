@@ -4,59 +4,50 @@
  * This is a basic tool that scans an existing archive and tries to fill in any gaps. It can be used in a download gets partially corrupted, or your Heritrix job gets corrupted.
  * It even detects a small number of things Heritrix fails to, e.g. <img srcset>. I use it even on completed Heritrix jobs to ensure a full archive.
  * Additionally, it will clean up the directory structure a bit. MirrorReader handles the 1-suffixed directories fairly well (albeit at the cost of speed), but it does not handle 1-suffixed files, which this does deal with.
- * Also note that it will write 301 redirects where they are expected by the including files, unless the 301 is specified in aviewerConfiguration.php. This is good for archive viewing, but does mean you'll end up with duplicated files. (I find it worthwhile, in any case, to have them located in both places.)
+ * Also note that it will write 301 redirects where they are expected by the including files, unless the 301 is specified in config.php. This is good for archive viewing, but does mean you'll end up with duplicated files. (I find it worthwhile, in any case, to have them located in both places.)
  * Currently searches <a href>, <img src>, and <img srcset>.
  * Does not redownload existing files.
  * Does not check content type, but will only download files matching valid string/regex rules.
  */
 
-$time = microtime(true);
-ob_end_flush();
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+
+// For now, report all errors.
 error_reporting(E_ALL);
 ini_set('display_errors', 'On');
-require('aviewerFunctions.php');
+
+// Require Configuration Files
+require(__DIR__ . '/vendor/autoload.php');
+require('config.php');
+
+// Allow Unlimited Execution Time
+$time = microtime(true);
+ob_end_flush();
 set_time_limit(0);
-require_once('aviewerConfiguration.php');
-$domainConfiguration['default']['scriptHacks'] = [];
+
+// Disable the script hacks by default, since they are liable to include too many files in our scan.
+\MirrorReader\Processor::$domainConfiguration['default']['scriptHacks'] = [];
+
+// Get $_GETs
 $resource = $_GET['resource'];
 $protocol = $_GET['protocol'] ?? 'http';
 $match = $_GET['match'] ?? '.*';
 $path = realpath('/Library/' . $resource);
-$ignore = apcu_exists("av_srcset_ignore") ? apcu_fetch("av_srcset_ignore") : [];
-$writeFile = fopen('srcSetLog.' . rtrim($resource, '/') . '.' . microtime() . '.html', "a") or die("Unable to open write file!");
-//$writeFile = fopen("php://output", "w");
-$successFile = fopen('srcSetLog.' . rtrim($resource, '/') . '.successes.txt', "a") or die("Unable to open write file!");
-$failFile = fopen('srcSetLog.' . rtrim($resource, '/') . '.errors.txt', "a") or die("Unable to open write file!");
 
 $_GET['start'] = ($_GET['start'] ?? 0);
 $_GET['end'] = ($_GET['end'] ?? 300);
 
-function mkdir_index($dirName) {
-    global $resource, $ignore, $writeFile, $match, $successFile, $failFile;
-    
-    if (!mkdir($dirName, 0777, true)) {
-        $baseFile = $dirName;
+// Find files that we should ignore based on previous runs
+$ignore = apcu_exists("av_srcset_ignore_$resource") ? apcu_fetch("av_srcset_ignore_$resource") : [];
 
-        while (!is_file($baseFile) && $baseFile !== '') {
-            $baseFile = rtrim(dirname($baseFile), '/');
-        }
+// Open Success, Fail Files for Logging
+//$writeFile = fopen('srcSetLog.' . rtrim($resource, '/') . '.' . microtime() . '.html', "a") or die("Unable to open write file!");
+$writeFile = fopen("php://output", "w");
+$successFile = fopen('srcSetLog.' . rtrim($resource, '/') . '.successes.txt', "a") or die("Unable to open write file!");
+$failFile = fopen('srcSetLog.' . rtrim($resource, '/') . '.errors.txt', "a") or die("Unable to open write file!");
 
-        if ($baseFile !== '') {
-            rename($baseFile, $baseFile . '~temp') or die("Could not rename $baseFile to $baseFile~temp");
-            mkdir($dirName, 0777, true) or die('Mkdir failed. Temp file leftover: ' . $baseFile . '~temp');
-            rename($baseFile . '~temp', $baseFile . '/index.html') or die("Could not rename $baseFile~temp to $baseFile/index.html");
 
-            fwrite($successFile, "$dirName: created $dirName directory, moving in $baseFile as $baseFile/index.html\n");
-            
-            return true;
-        }
-        else return false;
-    }
-    
-    return true;
-}
+
+
 
 function processFile($srcUrl, $lastFile = false) {
     global $resource, $ignore, $writeFile, $match, $successFile, $failFile;
@@ -66,7 +57,7 @@ function processFile($srcUrl, $lastFile = false) {
     if (strpos($srcUrl, '#') === 0)
         return;
 
-    $srcFile = ArchiveReaderFactory($srcUrl);
+    $srcFile = \MirrorReader\Factory::get($srcUrl);
     $destFile = $srcFile->getFileStore();
 //    if (substr($destFile, -1, 1) === '/') {
 //        $destFile .= 'index.html';
@@ -148,7 +139,7 @@ function processFile($srcUrl, $lastFile = false) {
     }
     else {
         if (!is_dir(dirname($destFile))) {
-            if (!mkdir_index(dirname($destFile))) {
+            if (!\MirrorReader\MkdirIndex::execute(dirname($destFile))) {
                 $status = 'fail [direrror]';
                 $color = 'red';
             }
@@ -239,9 +230,9 @@ function processFile($srcUrl, $lastFile = false) {
                     var_dump($headers);
                     var_dump($http_response_header);
 
-                    $redirectObject = ArchiveReaderFactory($redirectLocation);
+                    $redirectObject = \MirrorReader\Factory::get($redirectLocation);
 
-                    if (ArchiveReader::isFile($redirectObject->getFileStore())) {
+                    if (\MirrorReader\Processor::isFile($redirectObject->getFileStore())) {
                         $contents = $redirectObject->getContents();
 
                         if ($redirectObject->getFileType() === 'html') {
@@ -289,21 +280,35 @@ function processFile($srcUrl, $lastFile = false) {
             if (!$status) {
                 $status = 'fail [unknown]';
                 $color = 'red';
+                $ignore[] = $srcUrl;
             }
         }
     }
 
+
     fwrite($writeFile, "<tr style='color:$color;'><td>" . $srcUrl . "</td><td>" . $destFile . "</td><td>" . $status . "</td></tr>");
 
+    // If the file was successfully processed, log it and recurse
     if ($color === 'green') {
+        // Sleep for the given seconds before continuing
         usleep(1000000);
-        fwrite($successFile, "$lastFile\t$srcUrl\t$destFile\t$status\n");
 
+        // Write to Files
+        fwrite($successFile, "$lastFile\t$srcUrl\t$destFile\t$status\n");
         fwrite($writeFile, "<tr><th colspan=4>$destFile (decended):</th></tr>");
-        $file = ArchiveReaderFactory($srcUrl);
+
+        // Open the Resource Object
+        $file = \MirrorReader\Factory::get($srcUrl);
+
+        // Tell the Resource Object to invoke the processFile function whenever it encounters a URL.
         $file->formatUrlCallback = 'processFile';
-        if (!$file->error) $file->getContents();
+
+        // As long as no error occurred when opening, get the file's contents, which should force the processing of all URLs.
+        if (!$file->error)
+            $file->getContents();
     }
+
+    // If the file was not successfully processed, log it.
     elseif ($color === 'red') {
         usleep(500000);
         fwrite($failFile, "$lastFile\t$srcUrl\t$destFile\t$status\n");
@@ -313,36 +318,53 @@ function processFile($srcUrl, $lastFile = false) {
 $objects = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($path), RecursiveIteratorIterator::SELF_FIRST);
 
 $j = 0;
-$domainReader = new ArchiveReader($protocol . '://' . $resource);
+$domainReader = new \MirrorReader\Processor($protocol . '://' . $resource);
 
 fwrite($writeFile, '<table>');
-foreach($objects AS $name => $object) {
-    if (strpos($name, "data:") !== false) continue;
 
+foreach($objects AS $name => $object) {
+    // These files were usually downloaded by accident; don't try reading them.
+    if (strpos($name, "data:") !== false)
+        continue;
+
+    // Get the pathinfo
     $path_parts = pathinfo($name);
+
+    // Don't read binary files (unless "File:" is in the name, which usually indicates a Wikimedia file)
     if (strpos($name, 'File:') === false &&
         isset($path_parts['extension']) &&
         in_array(strtolower($path_parts['extension']), ['mp3', 'mp4', 'mkv', 'ogg', 'oga', 'ogv', 'gif', 'tiff', 'png', 'jpg', 'jpeg', 'zip']))
         continue;
+
+    // Don't read the relative directories.
     if (in_array($path_parts['basename'], ['.', '..']))
         continue;
 
+    // Skip Ahead/End
     $j++;
 
     if ($j <= $_GET['start']) continue;
     if ($j > $_GET['end']) break;
 
+    // Log the file
     fwrite($writeFile, "<tr><th colspan=4>$name ($j):</th></tr>");
 
-    $file = ArchiveReaderFactory($protocol . '://' . $resource . str_replace($path, '', $name));
+    // Open the Resource Object
+    $file = \MirrorReader\Factory::get($protocol . '://' . $resource . str_replace($path, '', $name));
+
+    // Tell the Resource Object to invoke the processFile function whenever it encounters a URL.
     $file->formatUrlCallback = 'processFile';
-    if (!$file->error) $file->getContents();
+
+    // As long as no error occurred when opening, get the file's contents, which should force the processing of all URLs.
+    if (!$file->error)
+        $file->getContents();
 }
 
 fwrite($writeFile, '</table>Time: ' . (microtime(true) - $time) . '<br /><br /><br />');
 fclose($writeFile);
-apcu_store("av_srcset_ignore", $ignore);
+
+apcu_store("av_srcset_ignore_$resource", $ignore);
 
 if (!isset($_GET['stop']))
-    echo '<script type="text/javascript">window.location = "aviewerSrcSetScanner.php?protocol=' . $_GET['protocol'] . '&resource=' . $_GET['resource'] . '&match=' . rawurlencode($_GET['match'] ?? '') . '&start=' . ($_GET['start'] + ($_GET['end'] - $_GET['start'])) . '&end=' . ($_GET['end'] + ($_GET['end'] - $_GET['start'])) . '";</script>';
+    echo '<script type="text/javascript">window.location = "./spider.php?protocol=' . $_GET['protocol'] . '&resource=' . $_GET['resource'] . '&match=' . rawurlencode($_GET['match'] ?? '') . '&start=' . ($_GET['start'] + ($_GET['end'] - $_GET['start'])) . '&end=' . ($_GET['end'] + ($_GET['end'] - $_GET['start'])) . '";</script>';
 ?>

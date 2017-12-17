@@ -1,9 +1,9 @@
 <?php
-$store = '/Library/'; // Configuration variable for where the domains are stored offline.
 
+\MirrorReader\Processor::$store = '/Library/'; // Configuration variable for where the domains are stored offline.
+\MirrorReader\Processor::$host = 'http://localhost';
 
-
-$domainConfiguration = array(
+\MirrorReader\Processor::$domainConfiguration = array(
     'default' => array(
         'homeFiles' => [
             'index.html',

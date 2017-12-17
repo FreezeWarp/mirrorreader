@@ -1,48 +1,82 @@
 <?php
-/*
-   Copyright 2017 Joseph T. Parsons
 
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
+namespace MirrorReader;
 
-   http://www.apache.org/licenses/LICENSE-2.0
+use \Exception;
+use \DOMDocument;
+use \RecursiveIteratorIterator;
 
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
-*/
-function ArchiveReaderFactory($file) {
-        //if (apcu_exists("ar_$file")) {
-        //    return apcu_fetch("ar_$file");
-        //}
-
-        //else {
-            return new ArchiveReader($file);
-        //}
-}
-
-class ArchiveReader {
-    private $fileInstance;
+class Processor {
+    /**
+     * @var string The file URL.
+     */
     private $file;
-    private $fileStore; // The location of the file on-disk.
+
+    /**
+     * @var string The location of the file on-disk.
+     */
+    private $fileStore;
+
+    /**
+     * @var array A parse of this file's information (from parse_url())
+     */
     private $fileParts;
-    private $fileType = false;
-    private $fileContents;
-    private $baseUrl = false;
+
+    /**
+     * @var string The detected file type for this file; may be automatically detected in getFileType(), or manually set by setFileType().
+     */
+    private $fileType = null;
+
+    /**
+     * @var string A base URL, if any, associated with this object. Typically a result of finding a <base /> tag.
+     */
+    private $baseUrl = null;
+
+    /**
+     * @var string The last error encountered in processing.
+     */
     public $error = "";
+
+    /**
+     * @var bool True if the passed file appears to be a directory; false if it appears to be a file (or otherwise).
+     */
     public $isDir = false;
-    public $scriptDir = "";
-    public $formatUrls = true;
-    public $formatUrlCallback = false;
-    public $passthru = false;
-    public $dirPath;
+
+    /**
+     * @var callable A function that will be used to format this object's URL. Typically used with the spider.php program to automatically download URLs encountered by the ArchiveReader.
+     */
+    public $formatUrlCallback = null;
+
+    /**
+     * @var string The location of the current file prior to finding any 301 redirects.
+     */
     public $fileStore301less;
 
+    /**
+     * @var array Configuration data for the current site; this will be a merge of the global configuration data and any domain-specific configuration information found in the $domainConfiguration static class variable.
+     */
     public $config;
-    private static $store = "/Library/";
+
+    /**
+     * @var string The HTTP host.
+     */
+    public static $host = "";
+
+    /**
+     * @var string Where library files are located on the file system.
+     */
+    public static $store = "";
+
+    /**
+     * @var array Configuration for all domains that can be processed for this script.
+     */
+    public static $domainConfiguration = [
+        "default" => []
+    ];
+
+    /**
+     * @var array A list of supported extensions.
+     */
     private static $archiveFormats = [
         'rar', // rar is fairly fast here; for large sites, it is really the only reasonable option (install from https://github.com/esminis/php_pecl_rar for PHP 7)
         'zip', // zip is slow here, but has potential for improvement (it currently using get_file_contents to check if a file exists, which has huge unecessary overhead)
@@ -50,20 +84,14 @@ class ArchiveReader {
         'tar.bz2' // tar.bz2 is even slower here, and is unlikely to improve
     ];
 
+
     function __construct($file) {
-        $this->fileInstance = $file;
-        //$this->scriptDir = 'http://' . dirname($_SERVER['HTTP_HOST'] . $_SERVER['SCRIPT_NAME']) . '/aviewer.php';
-        $this->scriptDir = 'http://localhost' . $_SERVER['PHP_SELF'];
         $this->setFile($file);
     }
 
-    function __destruct() {
-        //apcu_store("ar_" . $this->fileInstance, $this);
-    }
 
     public function setFile($file)
     {
-        global $domainConfiguration;
 
         //if (stripos($file, 'http:') !== 0 && stripos($file, 'https:') !== 0 && stripos($file, 'mailto:') !== 0 && stripos($file, 'ftp:') !== 0) { // Domain Not Included, Add It
         //    $file = 'http://' . $file;
@@ -94,72 +122,70 @@ class ArchiveReader {
 
         $fileParts['dir'] = $this->filePart($fileParts['path'], 'dir');
         $fileParts['file'] = $this->filePart($fileParts['path'], 'file');
-        $fileParts['host'] = $fileParts['host'] ?? '';
 
-        $this->file = "{$fileParts['scheme']}://{$fileParts['host']}{$fileParts['path']}";
-        $this->fileParts = $fileParts;
-
-        $this->config = array_merge($domainConfiguration['default'], isset($domainConfiguration[$this->fileParts['host']]) ? $domainConfiguration[$this->fileParts['host']] : []);
-
-        /* Handle $this->config Redirects */
-        if (isset($this->config['redirect'])) {
-            foreach ($this->config['redirect'] AS $find => $replace) { //echo $find, "\n", $replace; die();
-                if (strpos($this->file, $find) !== false) {
-                    return $this->setFile(str_replace($find, $replace, $this->file));
-                }
-            }
+        if (empty($fileParts['host'])) {
+            $this->error = 'Could not process host: ' . $file;
         }
+        else {
+            $this->file = "{$fileParts['scheme']}://{$fileParts['host']}{$fileParts['path']}";
+            $this->fileParts = $fileParts;
 
-        if (!is_dir(ArchiveReader::$store . "{$this->fileParts['host']}/")) {
-            $archiveFound = false;
+            $this->config = array_merge(self::$domainConfiguration['default'], isset(self::$domainConfiguration[$this->fileParts['host']]) ? self::$domainConfiguration[$this->fileParts['host']] : []);
 
-            foreach (ArchiveReader::$archiveFormats AS $format) {
-                if (is_file(ArchiveReader::$store . "{$this->fileParts['host']}.$format")) {
-                    $archiveFound = true;
-
-                    if ($format === 'rar' || $format === 'zip') {
-                        $this->setFileStore("{$format}://" . $this->formatUrlGET(ArchiveReader::$store . $this->fileParts['host'] . ".{$format}#" . ltrim($this->fileParts['pathStore'], '/')));
+            /* Handle $this->config Redirects */
+            if (isset($this->config['redirect'])) {
+                foreach ($this->config['redirect'] AS $find => $replace) { //echo $find, "\n", $replace; die();
+                    if (strpos($this->file, $find) !== false) {
+                        return $this->setFile(str_replace($find, $replace, $this->file));
                     }
-                    else {
-                        $this->setFileStore("phar://" . $this->formatUrlGET(ArchiveReader::$store . $this->fileParts['host'] . ".{$format}/" . ltrim($this->fileParts['pathStore'], '/')));
-                    }
-
-                    break;
                 }
             }
 
-            if (!$archiveFound) {
-                if ($this->config['passthru']) {
-                    $this->passthru = true;
+            if (!is_dir(self::$store . "{$this->fileParts['host']}/")) {
+                $archiveFound = false;
+
+                foreach (self::$archiveFormats AS $format) {
+                    if (is_file(self::$store . "{$this->fileParts['host']}.$format")) {
+                        $archiveFound = true;
+
+                        // If the file is part of a rar or zip archive, use a special format for it.
+                        if ($format === 'rar' || $format === 'zip') {
+                            $this->setFileStore("{$format}://" . $this->formatUrlGET(self::$store . $this->fileParts['host'] . ".{$format}#" . ltrim($this->fileParts['pathStore'], '/')));
+                        }
+
+                        // Otherwise, use the phar wrapper (which supports gz and bz2).
+                        else {
+                            $this->setFileStore("phar://" . $this->formatUrlGET(self::$store . $this->fileParts['host'] . ".{$format}/" . ltrim($this->fileParts['pathStore'], '/')));
+                        }
+
+                        break;
+                    }
                 }
-                else {
+
+                if (!$archiveFound) {
                     $this->error = 'Domain not found: ' . $this->getFileStore();
                     return;
                 }
             }
-        }
-        else {
-            $this->setFileStore($this->formatUrlGET(ArchiveReader::$store . $this->fileParts['host'] . $this->fileParts['pathStore']));
-        }
-
-
-        if (!$this->fileExists($this->getFileStore())) {
-            /* Check to see if the file exists when formatUrlGET is not run
-             * (This will probably be removed, since it was my own bug that introduced this possible issue.) */
-            if ($this->fileExists(ArchiveReader::$store . $this->fileParts['host'] . $this->fileParts['pathStore'])) {
-                $this->setFileStore(ArchiveReader::$store . $this->fileParts['host'] . $this->fileParts['pathStore'], true);
-            }
-
-            elseif ($this->config['passthru']) {
-                //header('Location: ' . $this->getFile()); // Redirect to the URL as originally passed. (Though, if no prefix was available, "http:" will have been added.)
-                //die('<a href="' . $this->getFile() . '">Redirecting.</a>');
-            }
-
             else {
-                $this->error = 'File not found: ' . $this->getFileStore();
+                $this->setFileStore($this->formatUrlGET(self::$store . $this->fileParts['host'] . $this->fileParts['pathStore']));
+            }
+
+
+            if (!$this->fileExists($this->getFileStore())) {
+                /* Check to see if the file exists when formatUrlGET is not run
+                 * (This will probably be removed, since it was my own bug that introduced this possible issue.) */
+                if ($this->fileExists(self::$store . $this->fileParts['host'] . $this->fileParts['pathStore'])) {
+                    $this->setFileStore(self::$store . $this->fileParts['host'] . $this->fileParts['pathStore'], true);
+                }
+
+                else {
+                    $this->error = 'File not found: ' . $this->getFileStore();
+                }
             }
         }
     }
+
 
     public function setFileStore($fileStore, $is301 = false) {
         $fileStore301less = $fileStore;
@@ -190,7 +216,7 @@ class ArchiveReader {
                 array_push($array301, $dirParts[$index] . 1); // "
                 $path301 = implode('/', $array301);  // "
 
-                if (count($dirParts)-1 === $index && is_file(ArchiveReader::$store . $this->fileParts['host'] . '/' . $path)) {
+                if (count($dirParts)-1 === $index && is_file(self::$store . $this->fileParts['host'] . '/' . $path)) {
                     if (substr($this->fileParts['path'], -1, 1) === '/') {
                         $part .= '1/index.html';
                     }
@@ -199,10 +225,10 @@ class ArchiveReader {
                         break;
                     }
                 }
-                elseif ($this->isDir(ArchiveReader::$store . $this->fileParts['host'] . '/' . $path)) {
+                elseif ($this->isDir(self::$store . $this->fileParts['host'] . '/' . $path)) {
                     continue;
                 }
-                elseif ($this->isDir(ArchiveReader::$store . $this->fileParts['host'] . '/' . $path301)) {
+                elseif ($this->isDir(self::$store . $this->fileParts['host'] . '/' . $path301)) {
                     $is301 = true;
                     $part .= "1";
                 }
@@ -214,15 +240,14 @@ class ArchiveReader {
 
             $path301 = implode('/', $dirParts); // And, finally, we implode the modified path and will use it as the 301 path.
 
-            if (file_exists($this->formatUrlGET(ArchiveReader::$store . $this->fileParts['host'] . '/' . $path301))) {
-                $fileStore = $this->formatUrlGET(ArchiveReader::$store . $this->fileParts['host'] . '/' . $path301);
+            if (file_exists($this->formatUrlGET(self::$store . $this->fileParts['host'] . '/' . $path301))) {
+                $fileStore = $this->formatUrlGET(self::$store . $this->fileParts['host'] . '/' . $path301);
             }
         }
 
 
         if ($this->isDir($fileStore) || substr($fileStore, -1, 1) === '/') {
             $this->isDir = true;
-            $this->dirPath = rtrim($fileStore, '/') . '/';
 
             foreach ($this->config['homeFiles'] AS $homeFile) {
                 if ($this->isFile(rtrim($fileStore, '/') . '/' . $homeFile)) {
@@ -245,15 +270,15 @@ class ArchiveReader {
     }
 
     static public function fileExists($file) {
-        return ArchiveReader::isFile($file) || ArchiveReader::isDir($file);
+        return self::isFile($file) || self::isDir($file);
     }
 
     static public function isFile($file) {
         if (substr($file, 0, 6) === 'zip://') {
-            return (bool) @file_get_contents(ArchiveReader::getRarName($file));
+            return (bool) @file_get_contents(self::getRarName($file));
         }
         elseif (substr($file, 0, 6) === 'rar://') {
-            return file_exists(ArchiveReader::getRarName($file));
+            return file_exists(self::getRarName($file));
         }
         else {
             return file_exists($file);
@@ -262,10 +287,10 @@ class ArchiveReader {
 
     static public function isDir($file) {
         if (substr($file, 0, 6) === 'zip://') {
-            return substr($file, -1, 1) === '#' || (bool) @scandir(ArchiveReader::getRarName($file));
+            return substr($file, -1, 1) === '#' || (bool) @scandir(self::getRarName($file));
         }
         elseif (substr($file, 0, 6) === 'rar://') {
-            return (bool) @scandir(ArchiveReader::getRarName($file));
+            return (bool) @scandir(self::getRarName($file));
         }
         else {
             return is_dir($file);
@@ -274,15 +299,15 @@ class ArchiveReader {
 
     static public function getFileContents($file) {
         if (in_array(substr($file, 0, 6), ['zip://', 'rar://'])) {
-            $file = ArchiveReader::getRarName($file);
+            $file = self::getRarName($file);
         }
 
-        return file_get_contents($file);
+        return @file_get_contents($file);
     }
 
     public static function getMimeType($file) {
         if (in_array(substr($file, 0, 6), ['zip://', 'rar://'])) {
-            $file = ArchiveReader::getRarName($file);
+            $file = self::getRarName($file);
         }
 
         $finfo = finfo_open(FILEINFO_MIME_TYPE); // return mime type ala mimetype extension
@@ -297,10 +322,6 @@ class ArchiveReader {
         return $a . '#' . urlencode(ltrim($b, '/'));
     }
 
-    public function setFileType($fileType) {
-        $this->fileType = $fileType;
-    }
-
     public function getFile() {
         return $this->file;
     }
@@ -308,7 +329,11 @@ class ArchiveReader {
     public function getFileStore() {
         return $this->fileStore;
     }
-    
+
+    public function setFileType($fileType) {
+        $this->fileType = $fileType;
+    }
+
     public function getFileType() {
         if (!$this->fileType) {
             $fileFileParts = explode('.', $this->fileParts['file']);
@@ -325,56 +350,57 @@ class ArchiveReader {
         return $this->fileType;
     }
 
+    public function getScriptPath() {
+        return self::$host . $_SERVER['PHP_SELF'];
+    }
+
     public function getContents() {
-        if ($this->passthru) {
-
+        if ($this->error) {
+            throw new Exception('Cannot getContents() when an error has been triggered: ' . $this->error);
         }
-        else {
-            if ($this->error) {
-                throw new Exception('Cannot getContents() when an error has been triggered: ' . $this->error);
-            }
 
-            $contents = ArchiveReader::getFileContents($this->getFileStore());
+        $contents = self::getFileContents($this->getFileStore());
 
-            // \xEF, \xBB, \xBF are byte-order markers; pretty rare, but can cause problems if not handled.
-            if ($this->getFileType() === 'other'
-                && preg_match('/^(\s|\xEF|\xBB|\xBF)*(\<\!\-\-|\<\!DOCTYPE|\<html|\<head)/i', $contents)) $this->fileType = 'html';
+        // \xEF, \xBB, \xBF are byte-order markers; pretty rare, but can cause problems if not handled.
+        if ($this->getFileType() === 'other'
+            && preg_match('/^(\s|\xEF|\xBB|\xBF)*(\<\!\-\-|\<\!DOCTYPE|\<html|\<head)/i', $contents)) $this->fileType = 'html';
 
-            switch ($this->getFileType()) {
-                case 'html': return $this->processHtml($contents);       break; // TODO: charset
-                case 'css':  return $this->processCSS($contents);        break;
-                case 'js':   return $this->processJavascript($contents); break;
-                default:     return $contents;                           break;
-            }
+        switch ($this->getFileType()) {
+            case 'html': return $this->processHtml($contents);       break; // TODO: charset
+            case 'css':  return $this->processCSS($contents);        break;
+            case 'js':   return $this->processJavascript($contents); break;
+            default:     return $contents;                           break;
         }
     }
 
 
-
+    /**
+     * Output the contents of the current file, preceeded by the correct content-type haeader and charset.
+     */
     public function echoContents() {
         $contents = $this->getContents();
 
         switch ($this->getFileType()) {
-            case 'html': header('Content-type: text/html' . '; charset=' . mb_detect_encoding($contents, 'auto'));       break; // TODO: charset
+            case 'html': header('Content-type: text/html' . '; charset=auto');       break; // TODO: charset
             case 'css':  header('Content-type: text/css' . '; charset=' . mb_detect_encoding($contents, 'auto'));        break;
             case 'js':   header('Content-type: text/javascript' . '; charset=' . mb_detect_encoding($contents, 'auto')); break;
             default:
-                header('Content-type: ' . ArchiveReader::getMimeType($this->getFileStore()));
+                header('Content-type: ' . self::getMimeType($this->getFileStore()));
                 break;
         }
 
         echo $contents;
     }
 
+
     static public function isSpecial($file) {
-        if ($file === '.' || $file === '..' || $file === '~') return true; // Yes, the last one isn't normally used; I have my pointless reasons.
-        else return false;
+        return $file === '.' || $file === '..' || $file === '~';
     }
 
-    static public function isZip($file) {
-        $file = (string) $file; // God, I wish this could be done in the function line.
-
-        return (substr($file, 0, 7) === "phar://" || substr($file, 0, 6) === "zip://");
+    static public function isZip(string $file) {
+        return substr($file, 0, 7) === "phar://"
+            || substr($file, 0, 6) === "zip://"
+            || substr($file, 0, 6) === "rar://";
     }
 
     static public function filePart($file, $filePart) { // Obtain the parent directory of a file or directory by analysing its string value. This will not operate on the directory or file itself.
@@ -433,13 +459,13 @@ class ArchiveReader {
 
         return $url;
     }
-    
+
     public function formatUrl($url, $skipRelative = false) {
         $url = html_entity_decode(trim($url));
         //$url = str_replace('\\', '/', $url); // Browsers also do this before even making HTTP requests, though I'm not sure of the exact rules.
 
 
-        if (strpos($url, $this->scriptDir) === 0) // Url was already formatted.
+        if (strpos($url, $this->getScriptPath()) === 0) // Url was already formatted.
             return $url;
 
         if (stripos($url, 'data:') === 0) // Do not process data: URIs
@@ -479,16 +505,21 @@ class ArchiveReader {
             }
         }
 
-        $url = ArchiveReaderFactory($url);
+        $urlObject = Factory::get($url);
 
+        // A format URL callback exists; use it to return the formatted URL.
         if (function_exists($this->formatUrlCallback)) {
             $function = $this->formatUrlCallback;
-            return $function($url->getFile(), $this->getFile());
+            return $function($urlObject->getFile(), $this->getFile());
         }
-        elseif ($url->config['passthru'])
-            return $url->getFile();
+
+        // The URL has passthru mode enabled; return the original path unaltered..
+        elseif ($urlObject->config['passthru'])
+            return $urlObject->getFile();
+
+        // Normal mode: append the URL to a the $_GET['url'] parameter of our script.
         else
-            return $this->scriptDir . '?url=' . urlencode($url->getFile()) . (isset($url->fileParts['fragment']) ? '#' . $url->fileParts['fragment'] : '');
+            return $this->getScriptPath() . '?url=' . urlencode($urlObject->getFile()) . (isset($urlObject->fileParts['fragment']) ? '#' . $urlObject->fileParts['fragment'] : '');
     }
 
 
@@ -500,7 +531,7 @@ class ArchiveReader {
                     return $this->formatUrl($m[0]);
                 },
                 $contents
-            ); // In some cases, the URL may be dropped directly in. This is an unreliable method of trying to replace it with the equvilent aviewer.php script, and is only used with the eccentric method, since this is rarely used when string-dropped.
+            ); // In some cases, the URL may be dropped directly in. This is an unreliable method of trying to replace it with the equvilent index.php script, and is only used with the eccentric method, since this is rarely used when string-dropped.
         }
 
         return $contents;
@@ -549,6 +580,18 @@ class ArchiveReader {
             // Remove all script tags.
             $contents = preg_replace('/\<script[^\>]*\>(.*?)\<\/script\>/is', '', $contents);
         }
+
+        /*if (in_array('removeAll', $this->config['scriptHacks'])) {
+            $noscriptList = $doc->getElementsByTagName("noscript");
+
+            for ($i = 0; $i < $noscriptList->length; $i++) {
+                $fragment = $doc->createDocumentFragment();
+                while ($noscriptList->item($i)->childNodes->length > 0) {
+                    $fragment->appendChild($noscriptList->item($i)->childNodes->item(0));
+                }
+                $noscriptList->item($i)->parentNode->replaceChild($fragment, $noscriptList->item($i));
+            }
+        }*/
 
 
         /* Fix Missing HTML Elements */
@@ -606,6 +649,7 @@ class ArchiveReader {
             }
         }
 
+
         // Process SCRIPT tags.
         $scriptList = $doc->getElementsByTagName('script');
         $scriptDrop = array();
@@ -613,10 +657,6 @@ class ArchiveReader {
             if ($scriptList->item($i)->hasAttribute('src')) {
                 $scriptList->item($i)->setAttribute('src', $this->formatUrl($scriptList->item($i)->getAttribute('src')) . '&type=js');
             }
-            //else {
-            //  if ($this->config['scriptDispose']) $scriptDrop[] = $scriptList->item($i);
-            //  else $scriptList->item($i)->nodeValue = htmlentities($this->processJavascript($scriptList->item($i)->nodeValue, true));
-            //}
         }
         foreach ($scriptDrop AS $drop) {
             $drop->parentNode->removeChild($drop);
@@ -628,7 +668,6 @@ class ArchiveReader {
         for ($i = 0; $i < $styleList->length; $i++) {
             $styleList->item($i)->nodeValue = htmlentities($this->processCSS($styleList->item($i)->nodeValue, true));
         }
-
 
 
         // Process IMG, VIDEO, AUDIO, IFRAME tags
@@ -656,6 +695,7 @@ class ArchiveReader {
             }
         }
 
+
         // Process A, AREA (image map) tags
         foreach (array('a', 'area') AS $ele) {
             $aList = $doc->getElementsByTagName($ele);
@@ -665,6 +705,7 @@ class ArchiveReader {
                 }
             }
         }
+
 
         /*$formList = $doc->getElementsByTagName('form');
         for ($i = 0; $i < $formList->length; $i++) {
@@ -689,6 +730,7 @@ class ArchiveReader {
             }
         }*/
 
+
         // Process meta-refresh headers that may in some cases automatically redirect a page, similar to <a href>.
         // <meta http-equiv="Refresh" content="5; URL=http://www.google.com/index">
         $metaList = $doc->getElementsByTagName('meta');
@@ -702,6 +744,7 @@ class ArchiveReader {
             }
         }
 
+
         // Process BODY, TABLE, TD, and TH tags w/ backgrounds. TABLE, TD & TH do support the background tag, but it was an extension of both Netscape and IE way back, and today most browsers still recognise it and will add a background image as appropriate, so... we have to support it.
         if (in_array('backgroundHack', $this->config['htmlHacks'])) {
             foreach (array('body', 'table', 'td', 'th') AS $ele) {
@@ -713,6 +756,7 @@ class ArchiveReader {
                 }
             }
         }
+
 
         // Process Option Links; some sites will store links in OPTION tags and then use Javascript to link to them. Thus, if the hack is enabled, we will try to cope.
         if (in_array('selectHack', $this->config['htmlHacks'])) {
@@ -726,6 +770,7 @@ class ArchiveReader {
                 }
             }
         }
+
 
         // This formats style and javascript attributes; it is safe, but we disable by default for performance reasons.
         // Performance may be reasonable when combined with effective caching, however.
@@ -743,28 +788,23 @@ class ArchiveReader {
 
                     foreach (array('onclick', 'onmouseover', 'onmouseout', 'onfocus', 'onblur', 'onchange', 'onsubmit') as $att) {
                         if ($node->hasAttribute($att)) {
-                            $node->setAttribute($att, str_replace("\n", '', $this->processJavascript($node->getAttribute($att), true)));
+                            if (in_array('removeAll', $this->config['scriptHacks'])) {
+                                $node->removeAttribute($att);
+                            }
+                            else {
+                                $node->setAttribute($att, str_replace("\n", '', $this->processJavascript($node->getAttribute($att), true)));
+                            }
                         }
                     }
                 }
             }
         }
 
-        /*if (in_array('removeAll', $this->config['scriptHacks'])) {
-            $noscriptList = $doc->getElementsByTagName("noscript");
-
-            for ($i = 0; $i < $noscriptList->length; $i++) {
-                $fragment = $doc->createDocumentFragment();
-                while ($noscriptList->item($i)->childNodes->length > 0) {
-                    $fragment->appendChild($noscriptList->item($i)->childNodes->item(0));
-                }
-                $noscriptList->item($i)->parentNode->replaceChild($fragment, $noscriptList->item($i));
-            }
-        }*/
 
         if (isset($this->config['htmlReplacePost'])) {
             foreach ($this->config['htmlReplacePost'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
         }
+
 
         return $doc->saveHTML(); // Return the updated data.
     }
@@ -868,80 +908,3 @@ class ArchiveReader {
         return $contents; // Return the updated data.
     }
 }
-
-
-/**
- * Formats a text string in a template. Consistent UI, yay! (Seeing as this template is very rarely shown, it is very minimal.)
- * @param string $data - The data to be returned as part of a template.
- * @param string $title - The title of the page.
- * @param int $special - If 0, standard template is used. If 1, the end body/html is not included. If 2, only text is returned.
- * @return string - Returns data, title formatted in template.
- */
-function aviewer_basicTemplate($data, $title = '', $special = 0) {
-  $return = '';
-  
-  if ($special === 0 || $special === 1) $return .= "<html>
-  <head>
-    <title>{$title}</title>
-    <style>
-    body { font-family: Ubuntu, sans; }
-    h1 { margin: 0px; padding: 5px; display: block; border-color: gray; border-spacing: 4px; background-color: #9f9f9f; }
-    .error { color: #ff0000; }
-    </style>
-  </head>
-
-  <body>
-    <h1>MirrorReader" . ($title ? ': ' . $title : '') . "</h1><hr />
-    {$data}
-";
-  
-  if ($special === 1) $return .= "  </body>
-</html>";
-  
-  if ($special === 2) $return .= $data;
-  
-  return $return;
-}
-
-
-/**
- * Attempts to flush the output buffer. This will also output 4K of whitespace, since some browsers will require roughly this much to show the sent output (in fact, I don't know a single browser that doesn't.)
- */
-function aviewer_flush() {
-  // Browsers are bitches, and like to make it hard to send buffers. This helps.
-  echo '                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    ';
-
-  flush();
-  ob_flush();
-}
-
-/*
- * Courtesy of https://github.com/salathe/spl-examples/wiki/RecursiveDOMIterator
- */
-class RecursiveDOMIterator implements RecursiveIterator
-{
-    protected $_position;
-    protected $_nodeList;
-    public function __construct(DOMNode $domNode)
-    {
-        $this->_position = 0;
-        $this->_nodeList = $domNode->childNodes;
-    }
-    public function getChildren() { return new self($this->current()); }
-    public function key()         { return $this->_position; }
-    public function next()        { $this->_position++; }
-    public function rewind()      { $this->_position = 0; }
-    public function valid()
-    {
-        return $this->_position < $this->_nodeList->length;
-    }
-    public function hasChildren()
-    {
-        return $this->current()->hasChildNodes();
-    }
-    public function current()
-    {
-        return $this->_nodeList->item($this->_position);
-    }
-}
-?>
