@@ -1,7 +1,7 @@
 # mirrorreader
 This is a reader for [Heritrix](https://github.com/internetarchive/heritrix3) (archive.org) site archives created with the MirrorWriter module.
 
-It can read archives stored in .zip, .rar, .tar.bz2, and .tar.gz archives, though .rar is the only recommended format in most situations.
+It can read archives stored in .zip, .rar, .tar.bz2, and .tar.gz archives, though .rar is the only recommended format in most situations. (It can also, of-course, read the normal directories written by MirrorWriter.)
 
 ## Utilities
 MirrorReader generally works with most MirrorWriter-written archives out-of-the-box, but includes two built in utilities that can be used to clean up such archives:
