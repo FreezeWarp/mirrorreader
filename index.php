@@ -70,7 +70,7 @@ if (!isset($_GET['url'])) {
         if (substr($domain, -4, 4) == '.zip' || substr($domain, -4, 4) == '.rar') {
             $domainNoZip = substr($domain, 0, -4);
 
-            echo "<a href=\"index.php?url=http://{$domainNoZip}/\">{$domainNoZip}</a><br />";
+            echo "<a href=\"" . MirrorReader\Processor::getLocalPath("http://" . $domainNoZip) . "\">{$domainNoZip}</a><br />";
         }
     }
 
@@ -82,6 +82,7 @@ if (!isset($_GET['url'])) {
  *********************************************/
 
 else {
+    \MirrorReader\Factory::registerShutdownFunction();
     $file = \MirrorReader\Factory::get($_GET['url']);
 
     if (isset($_GET['type'])) $file->setFileType($_GET['type']);
@@ -97,7 +98,7 @@ else {
         foreach (scandir(rtrim($file->getFileStore(), '/') . '/') AS $fileName) { // List each one.
             if (\MirrorReader\Processor::isSpecial($fileName)) continue; // Don't show ".", "..", etc.
 
-            echo "<a href=\"{$file->getScriptPath()}?url={$file->getFile()}/{$fileName}\">$fileName</a><br />";
+            echo "<a href=\"" . $file->getLocalPath($file->getFile()) . " \">$fileName</a><br />";
         }
     }
     else {

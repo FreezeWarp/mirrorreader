@@ -58,6 +58,11 @@ class Processor {
     public $config;
 
     /**
+     * @var string The file's contents, for caching purposes.
+     */
+    public $contents = null;
+
+    /**
      * @var string The HTTP host.
      */
     public static $host = "";
@@ -90,6 +95,11 @@ class Processor {
     }
 
 
+    public static function getLocalPath($path, $hash = '') {
+        return dirname(self::getScriptPath()) . '/' . $path . $hash;
+    }
+
+
     public function setFile($file)
     {
 
@@ -104,7 +114,9 @@ class Processor {
         //while (strpos($fileParts['path'], '//') !== false)
         //    $fileParts['path'] = str_replace('//', '/', $fileParts['path']); // Get rid of excess slashes.
 
-        if (isset($fileParts['query']))
+        if (substr($file, -1, 1) === '?') // Leave a ? in the path if it's at the end of the URL.
+            $fileParts['path'] .= '?';
+        elseif (isset($fileParts['query']))
             $fileParts['path'] .= '?' . $fileParts['query'];
 
 
@@ -249,6 +261,10 @@ class Processor {
         if ($this->isDir($fileStore) || substr($fileStore, -1, 1) === '/') {
             $this->isDir = true;
 
+            if (substr($this->file, -1, 1) !== '/') {
+                return $this->setFile($this->file . '/');
+            }
+
             foreach ($this->config['homeFiles'] AS $homeFile) {
                 if ($this->isFile(rtrim($fileStore, '/') . '/' . $homeFile)) {
                     $fileStore = rtrim($fileStore, '/') . '/' . $homeFile;
@@ -350,14 +366,21 @@ class Processor {
         return $this->fileType;
     }
 
-    public function getScriptPath() {
+    public static function getScriptPath() {
         return self::$host . $_SERVER['PHP_SELF'];
     }
 
+
+    /**
+     * @return string The contents of a file, transformed according to the filetype.
+     */
     public function getContents() {
-        if ($this->error) {
+        if ($this->error)
             throw new Exception('Cannot getContents() when an error has been triggered: ' . $this->error);
-        }
+
+        // Return cached copy, if possible.
+        if ($this->contents)
+            return $this->contents;
 
         $contents = self::getFileContents($this->getFileStore());
 
@@ -366,16 +389,16 @@ class Processor {
             && preg_match('/^(\s|\xEF|\xBB|\xBF)*(\<\!\-\-|\<\!DOCTYPE|\<html|\<head)/i', $contents)) $this->fileType = 'html';
 
         switch ($this->getFileType()) {
-            case 'html': return $this->processHtml($contents);       break; // TODO: charset
-            case 'css':  return $this->processCSS($contents);        break;
-            case 'js':   return $this->processJavascript($contents); break;
-            default:     return $contents;                           break;
+            case 'html': return $this->contents = $this->processHtml($contents);       break;
+            case 'css':  return $this->contents = $this->processCSS($contents);        break;
+            case 'js':   return $this->contents = $this->processJavascript($contents); break;
+            default:     return $this->contents = $contents;                           break;
         }
     }
 
 
     /**
-     * Output the contents of the current file, preceeded by the correct content-type haeader and charset.
+     * Output the contents of the current file, preceeded by the correct content-type header and charset.
      */
     public function echoContents() {
         $contents = $this->getContents();
@@ -393,15 +416,13 @@ class Processor {
     }
 
 
+    /**
+     * @return bool True if the input $file is a special file (., .., or ~), false otherwise.
+     */
     static public function isSpecial($file) {
         return $file === '.' || $file === '..' || $file === '~';
     }
 
-    static public function isZip(string $file) {
-        return substr($file, 0, 7) === "phar://"
-            || substr($file, 0, 6) === "zip://"
-            || substr($file, 0, 6) === "rar://";
-    }
 
     static public function filePart($file, $filePart) { // Obtain the parent directory of a file or directory by analysing its string value. This will not operate on the directory or file itself.
         $file = str_replace('//', '/', $file);
@@ -437,10 +458,22 @@ class Processor {
         }
     }
 
-    public function formatUrlGET($url) {
-        $url = preg_replace_callback('/(\?|&)(' . implode('|', $this->config['ignoreGETs']) . ')(=.*?)(&|$|\.)/', function ($match) {
+
+    public function removeBannedGET($url) {
+        return preg_replace_callback('/(\?|&)(' . implode('|', $this->config['ignoreGETs']) . ')(=.*?)(&|$|\.)/', function ($match) {
             return ($match[4] === '&' ? $match[1] : $match[4]);
         }, $url);
+    }
+
+
+    /**
+     * Transform the GET parameters of a URL.
+     *
+     * @param $url
+     * @return string
+     */
+    public function formatUrlGET($url) {
+        $url = $this->removeBannedGET($url);
 
         // Catches get parameters in files with recognised extensions (TODO: all?) and directories.
         $url = preg_replace_callback('/(^|\/|\.(' . implode('|', $this->config['recognisedExtensions']) . '))\?(([^"\&\<\>\?= ]+)(=([^"\&\<\>\? ]*)|)(\&([^"\&\<\>\? ]+)(=([^"\&\<\>\?= ]*))*)*)/', function ($m) {
@@ -460,32 +493,39 @@ class Processor {
         return $url;
     }
 
-    public function formatUrl($url, $skipRelative = false) {
+
+    /**
+     * Transform a URL into one passed into our script path as a $_GET['url'] argument.
+     *
+     * @param $url string The URL to transform.
+     * @return string The URL, transformed.
+     */
+    public function formatUrl($url) {
         $url = html_entity_decode(trim($url));
         //$url = str_replace('\\', '/', $url); // Browsers also do this before even making HTTP requests, though I'm not sure of the exact rules.
 
 
-        if (strpos($url, $this->getScriptPath()) === 0) // Url was already formatted.
+        if (strpos($url, self::getScriptPath()) === 0) // Url was already formatted.
             return $url;
 
         if (stripos($url, 'data:') === 0) // Do not process data: URIs
             return $url;
 
-        if (stripos($url, 'javascript:') === 0) // Do not process javascript: URIs
-            return 'javascript:' . $this->processJavascript(substr($url, 11));
+        if (stripos($url, 'javascript:') === 0) // Process javascript: URIs as Javascript.
+            return 'javascript:' . $this->processJavascript(substr($url, 11), true);
 
         if (strpos($url, '#') === 0) // Hashes can be left alone, when they are on their own.
             return $url;
 
-        if (strpos($url, '?') === 0)
+        if (strpos($url, '?') === 0) // A query string relative to the current path.
             $url = strtok($this->fileParts['path'], '?') . $url;
 
-        if (strpos($url, '//') === 0)
+        if (strpos($url, '//') === 0) // No protocol, which means use whatever the current protocol is.
             $url = $this->fileParts['scheme'] . ':' . $url;
 
         else {
             if (stripos($url, 'http:') !== 0 && stripos($url, 'https:') !== 0 && stripos($url, 'mailto:') !== 0 && stripos($url, 'ftp:') !== 0) { // Domain Included
-                if (strpos($url, '/') !== 0) { // Absolute Path
+                if (substr($url, 0, 1) !== '/') { // Relative Path
                     $urlDirectoryLocal = $this->fileParts['dir'];
 
                     while (substr($url, 0, 2) === './') {
@@ -505,6 +545,7 @@ class Processor {
             }
         }
 
+
         $urlObject = Factory::get($url);
 
         // A format URL callback exists; use it to return the formatted URL.
@@ -519,10 +560,17 @@ class Processor {
 
         // Normal mode: append the URL to a the $_GET['url'] parameter of our script.
         else
-            return $this->getScriptPath() . '?url=' . urlencode($urlObject->getFile()) . (isset($urlObject->fileParts['fragment']) ? '#' . $urlObject->fileParts['fragment'] : '');
+            return self::getLocalPath($this->removeBannedGET($urlObject->getFile()), isset($urlObject->fileParts['fragment']) ? '#' . $urlObject->fileParts['fragment'] : '');
     }
 
 
+    /**
+     * In some cases, the URL may be dropped directly in a file. This will find and replace all apparent URLs (those that contain a valid domain and end with a recognised extension), though it is unreliable.
+     * Enable this hack with 'suspectDomainAnywhere' in the 'scriptHacks' config.
+     *
+     * @param $contents string The content to search through.
+     * @return string A string containing formatted URLs.
+     */
     private function hackFormatUrlAnywhere($contents) {
         if (in_array('suspectDomainAnywhere', $this->config['scriptHacks'])) {
             return preg_replace_callback(
@@ -531,7 +579,7 @@ class Processor {
                     return $this->formatUrl($m[0]);
                 },
                 $contents
-            ); // In some cases, the URL may be dropped directly in. This is an unreliable method of trying to replace it with the equvilent index.php script, and is only used with the eccentric method, since this is rarely used when string-dropped.
+            );
         }
 
         return $contents;
@@ -540,10 +588,10 @@ class Processor {
 
 
     /**
-     * Rewrites HTML. This uses DOMDocument, and can handle most bad HTML. (No guarentees, but no cases have yet been found where it screws up.)
-     * @global string $this->config
-     * @param string $contents
-     * @return string
+     * Parses and rewrites HTML. This uses DOMDocument, and can handle most bad HTML.
+     *
+     * @param string $contents The HTML to parse for archive display.
+     * @return string A string containing parsed HTML.
      */
     function processHtml($contents) {
         /* HTML Replacement, if enabled */
@@ -564,8 +612,9 @@ class Processor {
         // The horrible if IE hack.
         $contents = preg_replace('/\<\!--\[if([a-zA-Z0-9 ]+)\\]\>.+?\<\!\[endif\]--\>/is', '', $contents);
 
-        $contents = str_replace('--!>', '-->', $contents); // Alter Improper Comment Form. This is known to break things.
-        $contents = str_replace('//-->', '-->', $contents); // Alter Improper Comment Form. This may break things (it is less clear.)
+        // Alter Improper Comment Form. This is known to break things.
+        $contents = str_replace('--!>', '-->', $contents);
+        $contents = str_replace('//-->', '-->', $contents); // This one may not actually break things.
 
 
         /* Remove All Scripts Hack, if Enabled
@@ -605,16 +654,9 @@ class Processor {
         if (strpos($contents, '</html>') === false)
             $contents = $contents . '</html>';*/
 
-
         /* Hack to remove HTML comments from <style> tags, for the same reason */
         //$contents = preg_replace('/\<style([^\>]*?)\>(.*?)\<\!\-\-(.*?)\-\-\>(.*?)\<\/style\>/is', '<style$1>$2$3$4</style>', $contents);
 
-        /* Hack to move <style> tags into <head> if they are in <body>, since it will cause problems with loadHtml. */
-//        $matches = [];
-//  if (preg_match('/\<body([^\>]*)\>(.*?)\<style([^\>]*)\>(.*?)\<\/style\>/is', $contents, $matches)) { // This particular regex avoids catastrophic backtracking as much as I personally know how to
-//    $contents = preg_replace('/\<body([^\>]*)\>(.*?)\<style([^\>]*)\>(.*?)\<\/style\>/is', '<body$1>$2', $contents);
-//    $contents = str_replace('</head>', "<style{$matches[3]}>$matches[4]</style></head>", $contents);
-//  }
 
         $contents = $this->hackFormatUrlAnywhere($contents);
 
@@ -811,74 +853,65 @@ class Processor {
 
 
     /**
-     * Rewrites Javascript
+     * Parsess and rewrites Javascript using the enabled config['scriptHacks']. (If no script hacks are used, Javascript will not typically be altered.)
+     *
      * @global string $this->config
      * @global string $urlParts
      * @param string $contents&&
      * @return string
      */
     function processJavascript($contents, $inline = false) {
+        // If enabled, perform find-replace on Javascript as configured.
         if (isset($this->config['jsReplacePre'])) {
             foreach ($this->config['jsReplacePre'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
         }
 
-        //$contents = preg_replace('/\/\*(.*?)\*\//is', '', $contents); // Removes comments.
 
-        if (in_array('removeAll', $this->config['scriptHacks'])) {
+        // If removeAll is enabled, return an empty string.
+        if (in_array('removeAll', $this->config['scriptHacks']))
             return "";
+
+
+        // Remove comments.
+        if (in_array('removeComments', $this->config['scriptHacks'])) {
+            $contents = preg_replace('/\/\*.*?\*\//s', '', $contents);
+            $contents = preg_replace('/\/\/.*\$/', '', $contents);
         }
 
+        // If suspectFileAnywhere is enabled, look for files with known extensions in the Javascript body.
         if (in_array('suspectFileAnywhere', $this->config['scriptHacks'])) { // Convert anything that appears to be a suspect file. Because of the nature of this, there is a high chance stuff will break if enabled. But, it allows some sites to work properly that otherwise wouldn't.
             $contents = preg_replace_callback('/(([a-zA-Z0-9\_\-\/]+)(\.(' . implode('|', $this->config['recognisedExtensions']) . ')))([^a-zA-Z0-9])/i', function($m) {
                 return $this->formatUrl($m[1]) . $m[5];
             }, $contents); // Note that if the extension is followed by a letter or integer, it is possibly a part of a JavaScript property, which we don't want to convert
         }
+
+        // If suspectFileString is enabled instead, look for files with known extensions in Javascript strings.
         elseif (in_array('suspectFileString', $this->config['scriptHacks'])) { // Convert strings that contain files ending with suspect extensions.
-            $contents = preg_replace_callback('/("|\')(([a-zA-Z0-9\_\-\/]+)\.(' . implode('|', $this->config['recognisedExtensions']) . ')(\?(([^"\&\<\>\?= ]+)(=([^"\&\<\>\? ]*)|)(\&([^"\&\<\>\? ]+)(=([^"\&\<\>\?= ]*))*)*)|))\1/i', function($m) {
+            $contents = preg_replace_callback('/("|\')(([a-zA-Z0-9\_\-\/]+)\.(' . implode('|', $this->config['recognisedExtensions']) . ')(\?(([^"\&\<\>\?= ]+)(=([^"\&\<\>\? ]*)|)(\&([^"\&\<\>\? ]+)(=([^"\&\<\>\?= ]*))*)*)?)?)\1/i', function($m) {
                 return $m[1] . $this->formatUrl($m[2]) . $m[1];
             }, $contents);
         }
 
-
-        /* Remove escaped slashes from JS strings */
-        // Using full regex:
-        //while (preg_match("/((?<![\\\\])['\"])((?:.(?!(?<![\\\\])\\1))*.?)\\\\\/((?:.(?!(?<![\\\\])\\1))*.?)\\1/is", $contents)) {
-        //  $contents = preg_replace("/((?<![\\\\])['\"])((?:.(?!(?<![\\\\])\\1))*.?)\\\\\/((?:.(?!(?<![\\\\])\\1))*.?)\\1/is", "$1$2/$3$1", $contents);
-        //}
-        /*    start:
-            preg_match_all("/([\"'])(?:\\\\\\1|.)*?\\1/is", $contents, $matches, PREG_OFFSET_CAPTURE); //var_dump($matches);
-
-            foreach ($matches[0] AS $match) {
-                if (strpos('\/', $match[0]) !== false) {
-                    $newString = str_replace('\/', '/', $match[0]);
-                    echo $contents = substr_replace($contents, $newString, $match[1], strlen($match[0]));
-
-                    goto start;
-                }
-            }*/
-        //) {
-        //    $match[0] = str_replace('\/', '/', $match[0]);
-        //}
-
-        // Using capture groups:
-//    while(preg_match("/((?<![\\\\])['\"])((?:.(?!(?<![\\\\])\\1))*.?)\\\\\/((?:.(?!(?<![\\\\])\\1))*.?)\\1/is", $contents, $matches, PREG_OFFSET_CAPTURE)) { var_dump($matches);
-//        $content = substr_replace('\\/', '/', $matches[0][1], strlen($matches[0][0])); $i++; if ($i > 100) die();
-//    }
-
+        // If this is not inline Javascript, use hackFormatUrlAnywhere. (If it is inline, this would have been run anyway.)
         if (!$inline)
             $contents = $this->hackFormatUrlAnywhere($contents);
 
+        // If suspectDirString is used in script hacks, look for directories in Javascript strings. (There is no good way of doing this globally, due to things like regex.)
         if (in_array('suspectDirString', $this->config['scriptHacks'])) {
             $contents = preg_replace_callback('/("|\')((\/|)((([a-zA-Z0-9\_\-]+)\/)+))\1/i', function($m) {
                 return $m[1] . $this->formatUrl($m[2]) . $m[1];
             }, $contents);
         }
 
+
+        // If enabled, perform find-replace on Javascript as configured.
         if (isset($this->config['jsReplacePost'])) {
             foreach ($this->config['jsReplacePost'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
         }
 
-        return $contents; // Return the updated data.
+
+        // Return the updated data.
+        return $contents;
     }
 
 
@@ -888,6 +921,7 @@ class Processor {
      * @return string
      */
     function processCSS($contents, $inline = false) {
+        // If enabled, perform find-replace on CSS as configured.
         if (isset($this->config['cssReplacePre'])) {
             foreach ($this->config['cssReplacePre'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
         }
@@ -897,10 +931,12 @@ class Processor {
         //if (!$inline)
         //    $contents = $this->hackFormatUrlAnywhere($contents);
 
+        // Replace url() tags
         $contents = preg_replace_callback('/url\((\'|"|)(.+?)\\1\)/is', function($m) {
             return 'url(' . $m[1] . $this->formatUrl($m[2]) . $m[1] . ')';
         }, $contents); // CSS images are handled with this.
 
+        // If enabled, perform find-replace on CSS as configured.
         if (isset($this->config['cssReplacePost'])) {
             foreach ($this->config['cssReplacePost'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
         }

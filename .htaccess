@@ -1,0 +1,7 @@
+RewriteEngine on
+
+RewriteCond "%{THE_REQUEST}" "^[A-Z]+ /mirrorreader/http(.+)&type=(.+) "
+RewriteRule ^ index.php?url=http%1&type=%2 [B,S=1]
+
+RewriteCond "%{THE_REQUEST}" "^[A-Z]+ /mirrorreader/http(.+) "
+RewriteRule ^ index.php?url=http%1 [B]
