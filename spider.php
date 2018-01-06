@@ -103,7 +103,6 @@ function processFile($srcUrl, $lastFile = false) {
         stripos($srcFile->getFile(), "/privmsg.php") !== false ||
         stripos($srcFile->getFile(), "/posting.php") !== false ||
         stripos($srcFile->getFile(), "/xmlrpc.php") !== false ||
-        //stripos($srcFile->getFile(), "/w/") !== false ||
         stripos($srcFile->getFile(), "Special:") !== false ||
         stripos($srcFile->getFile(), "Talk:") !== false ||
         stripos($srcFile->getFile(), "User:") !== false) {
@@ -121,12 +120,16 @@ function processFile($srcUrl, $lastFile = false) {
     }
 
     // GET Ban
-    elseif (preg_match("/(&|\\?)(p=|sort=|do=add|do=sendtofriend|view=next|view=previous|replytocom|advertisehereid=|oldid|mobileaction|veaction=edit|action=pm|action=formcreate|action=edit|action=create|action=history|action=info|action=printpage|action=register|action=lostpw|postingmode=|printable|parent=|redirect)/", $srcFile->getFile()) !== 0) {
+    elseif (preg_match("/(&|\\?)(p=|sort=|do=add|do=sendtofriend|do=getinfo|week=|view=next|view=previous|replytocom|advertisehereid=|oldid|mobileaction|veaction=edit|action=pm|action=formcreate|action=edit|action=create|action=history|action=info|action=printpage|action=register|action=lostpw|postingmode=|printable|parent=|redirect)/", $srcFile->getFile()) !== 0) {
         $status = 'fail [bad get]';
         $color = 'orange';
     }
     elseif (preg_match("/(newreply|sendmessage|newthread|cron|external|private|printthread|register|search|showpost)\.php/", $srcFile->getFile()) !== 0) {
         $status = 'fail [bad page]';
+        $color = 'orange';
+    }
+    elseif (preg_match("/\/clientscript\//", $srcFile->getFile()) !== 0) {
+        $status = 'fail [bad clientscript]';
         $color = 'orange';
     }
     elseif (preg_match("/$match/", $srcFile->getFile()) !== 1) {
@@ -310,7 +313,7 @@ function processFile($srcUrl, $lastFile = false) {
 
     // If the file was not successfully processed, log it.
     elseif ($color === 'red') {
-        usleep(500000);
+        usleep(5000000);
         fwrite($failFile, "$lastFile\t$srcUrl\t$destFile\t$status\n");
     }
 }

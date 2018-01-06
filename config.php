@@ -16,6 +16,8 @@
 
         'scriptHacks' => [ // Which script hacks should be used. Script processing is tricky, as there are a million ways things can be done (indeed, URLs could even be encrypted or specially encoded, making it impossible to work with them). Instead, we have four common hacks: 'suspectFileString' and 'suspectFileAnywhere' are mutually exclusive, with the former usually working but not breaking anything, and the latter more likely to both work and break something. Additionally, there are 'suspectDirString' which is more likely to break something, but can work with directories that are placed in strings (it is almost guarenteed to break something if implemented using the anywhere method, due to regex, etc.), and 'suspectDomainAnywhere' which usually won't break anything, but should still be used with caution.
             //'removeAll', // Removes all scripts, and activates <noscript> nodes. An easy way to disable Javascript on a per-site basis.
+            'removeComments', // Remove comments from the JavaScript body. Results in a speed boost, but can also break things.
+            //'suspectFileAnywhere', // Searches for file patterns inside of the whole JS body. It will probably find all URLs, but will likely break some as well.
             'suspectFileString', // Searches for file patterns inside of JS strings. Fairly effective, and unlikely to break things.
             //'suspectDomainAnywhere', // Searches for file patterns anywhere in the JS body. As you'll almost never find a full domain just cooincidentally exist in the JS body, this shouldn't break things, and will still be fairly effective.
         ],
@@ -23,7 +25,7 @@
         'htmlHacks' => [
             'backgroundHack', // Checks <body background>, <table background>, <tr background>, etc. No reason not to enable, but because the behaviour is not compliant with HTML, we have it available as a flag.
             'selectHack', // Checks <option values> for URL-looking patterns, and rewrites as appropriate. This can, in very rare situations, break things. No noticable performance penalty.
-            'dirtyAttributes' // Processes style and javascript attributes. Currently quite slow, but can probably be sped up, and in any case is unlikely to break anything.
+            // 'dirtyAttributes' // Processes style and javascript attributes. Currently quite slow, but can probably be sped up, and in any case is unlikely to break anything.
         ],
 
         'customSrcAttributes' => ['data-src'], // This is a list of custom attributes containing URLs that should be parsed. data-src is used be Wikia.
@@ -97,6 +99,10 @@
         )
     ),
 
+    'wikibound.info' => array(
+        'htmlHacks' => ['dirtyAttributes'],
+    ),
+
     'niwanetwork.org' => array(
         'redirect' => array(
             'niwanetwork.org' => 'www.niwanetwork.org',
@@ -129,5 +135,11 @@
 
     /* working 100% */
     'www.serebii.net' => [],
+
+    'www.victoryroad.net' => [
+        'redirect' => [
+            '/clientscript/misc.php' => '/misc.php',
+        ],
+    ]
 );
 ?>
