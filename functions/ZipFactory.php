@@ -20,7 +20,10 @@ class ZipFactory {
             return self::$processorCollection[$file];
         }
         if (apcu_exists("mirrorreader_zip_{$file}")) {
-            return apcu_fetch("mirrorreader_zip_{$file}");
+            $zip = apcu_fetch("mirrorreader_zip_{$file}");
+            if ($zip->numFiles) {
+                return $zip;
+            }
         }
 
         $processor = new \ZipArchive();

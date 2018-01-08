@@ -296,22 +296,18 @@ class Processor {
         return self::isDir($file) || self::isFile($file);
     }
 
+    static public function getZipArchivePath($file) {
+        return self::$store . explode('#', explode(self::$store, $file)[1])[0];
+    }
+
     static public function isFile($file) {
         if (substr($file, 0, 6) === 'zip://') {
-            $zipName = self::$store . explode('#', explode(self::$store, $file)[1])[0];
-            $zip = ZipFactory::get($zipName);
-
-            $fileParts = explode('#', $file);
-
-            return $zip->locateName($fileParts[1]) !== false;
+            $zip = ZipFactory::get(self::getZipArchivePath($file));
+            return $zip->locateName(explode('#', $file)[1]) !== false;
         }
         elseif (substr($file, 0, 6) === 'rar://') {
-            $zipName = self::$store . explode('#', explode(self::$store, $file)[1])[0];
-            $zip = RarFactory::get($zipName);
-
-            $fileParts = explode('#', $file);
-
-            return @$zip->getEntry($fileParts[1]) !== false;
+            $zip = RarFactory::get(self::getZipArchivePath($file));
+            return @$zip->getEntry(explode('#', $file)[1]) !== false;
         }
         else {
             return file_exists($file);
@@ -322,23 +318,14 @@ class Processor {
         if (substr($file, 0, 6) === 'zip://') {
             if (substr($file, -1, 1) === '#') return true;
 
-            $zipName = self::$store . explode('#', explode(self::$store, $file)[1])[0];
-            $zip = ZipFactory::get($zipName);
-
-            $fileParts = explode('#', $file);
-
-            return $zip->locateName($fileParts[1] . "/") !== false;
+            $zip = ZipFactory::get(self::getZipArchivePath($file));
+            return $zip->locateName(explode('#', $file)[1] . "/") !== false;
         }
         elseif (substr($file, 0, 6) === 'rar://') {
             if (substr($file, -1, 1) === '#') return true;
 
-            $zipName = self::$store . explode('#', explode(self::$store, $file)[1])[0];
-            $zip = RarFactory::get($zipName);
-
-            $fileParts = explode('#', $file);
-
-            return @$zip->getEntry($fileParts[1] . "/") !== false;
-            //return (bool) @scandir(self::getRarName($file));
+            $zip = RarFactory::get(self::getZipArchivePath($file));
+            return @$zip->getEntry(explode('#', $file)[1] . "/") !== false;
         }
         else {
             return is_dir($file);
@@ -346,11 +333,17 @@ class Processor {
     }
 
     static public function getFileContents($file) {
-        if (in_array(substr($file, 0, 6), ['zip://', 'rar://'])) {
-            $file = self::getRarName($file);
+        if (substr($file, 0, 6) === 'zip://') {
+            $zip = ZipFactory::get(self::getZipArchivePath($file));
+            return $zip->getFromName(explode('#', $file)[1]);
         }
-
-        return @file_get_contents($file);
+        elseif (substr($file, 0, 6) === 'rar://') {
+            $zip = RarFactory::get(self::getZipArchivePath($file));
+            return stream_get_contents(@$zip->getEntry(explode('#', $file)[1])->getStream());
+        }
+        else {
+            return @file_get_contents($file);
+        }
     }
 
     public function getMimeType() {
