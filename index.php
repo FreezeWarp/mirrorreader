@@ -93,6 +93,7 @@ else {
     \MirrorReader\Factory::registerShutdownFunction();
     \MirrorReader\ZipFactory::registerShutdownFunction();
     \MirrorReader\RarFactory::registerShutdownFunction();
+
     $file = \MirrorReader\Factory::get($_GET['url']);
 
     if (isset($_GET['type'])) $file->setFileType($_GET['type']);

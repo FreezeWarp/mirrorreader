@@ -95,16 +95,135 @@ class Processor {
     ];
 
 
+    /**
+     * Get a URL formatted so that it is input to the MirrorReader instance.
+     *
+     * @param $path
+     * @param string $hash
+     * @return string
+     */
+    public static function getLocalPath($path, $hash = '') {
+        return dirname(self::getScriptPath()) . '/' . $path . $hash;
+    }
+
+    /**
+     * @return string The web-facing path of the MirrorReader instance.
+     */
+    public static function getScriptPath() {
+        return self::$host . $_SERVER['PHP_SELF'];
+    }
+
+    /**
+     * Determine if a file or directory exists.
+     *
+     * @param $file
+     * @return bool
+     */
+    static public function fileExists($file) {
+        return self::isDir($file) || self::isFile($file);
+    }
+
+    /**
+     * Given a file path, get the archive path from it. E.g. /Library/a.zip#path = /Library/a.zip
+     *
+     * @param $file
+     * @return string
+     */
+    static public function getZipArchivePath($file) {
+        return self::$store . explode('#', explode(self::$store, $file)[1])[0];
+    }
+
+    /**
+     * Normalise a file path to one that is correctly encoded for RAR archives.
+     *
+     * @param $file
+     * @return bool
+     */
+    public static function getRarName($file) {
+        list($a, $b) = explode('#', $file);
+
+        if (substr($file, 0, 6) === 'rar://')
+            return $a . '#' . urlencode(ltrim($b, '/'));
+        else
+            return $a . '#' . ltrim($b, '/');
+    }
+
+    /**
+     * Check whether a given path both exists on the disk and is a file.
+     *
+     * @param $file
+     * @return bool
+     */
+    static public function isFile($file) {
+        if (substr($file, 0, 6) === 'zip://') {
+            $zip = ZipFactory::get(self::getZipArchivePath($file));
+            return $zip->locateName(explode('#', $file)[1]) !== false;
+        }
+        elseif (substr($file, 0, 6) === 'rar://') {
+            $zip = RarFactory::get(self::getZipArchivePath($file));
+            return @$zip->getEntry(explode('#', $file)[1]) !== false;
+        }
+        else {
+            return file_exists($file);
+        }
+    }
+
+    /**
+     * Check whether a given path both exists on the disk and is a directory.
+     *
+     * @param $file
+     * @return bool
+     */
+    static public function isDir($file) {
+        if (substr($file, 0, 6) === 'zip://') {
+            if (substr($file, -1, 1) === '#') return true;
+
+            $zip = ZipFactory::get(self::getZipArchivePath($file));
+            return $zip->locateName(explode('#', $file)[1] . "/") !== false;
+        }
+        elseif (substr($file, 0, 6) === 'rar://') {
+            if (substr($file, -1, 1) === '#') return true;
+
+            $zip = RarFactory::get(self::getZipArchivePath($file));
+            return @$zip->getEntry(explode('#', $file)[1] . "/") !== false;
+        }
+        else {
+            return is_dir($file);
+        }
+    }
+
+    /**
+     * Get the contents of a file.
+     *
+     * @param $file
+     * @return bool
+     */
+    static public function getFileContents($file) {
+        if (substr($file, 0, 6) === 'zip://') {
+            $zip = ZipFactory::get(self::getZipArchivePath($file));
+            return $zip->getFromName(explode('#', $file)[1]);
+        }
+        elseif (substr($file, 0, 6) === 'rar://') {
+            $zip = RarFactory::get(self::getZipArchivePath($file));
+            return stream_get_contents(@$zip->getEntry(explode('#', $file)[1])->getStream());
+        }
+        else {
+            return @file_get_contents($file);
+        }
+    }
+
+
     function __construct($file) {
         $this->setFile($file);
     }
 
 
-    public static function getLocalPath($path, $hash = '') {
-        return dirname(self::getScriptPath()) . '/' . $path . $hash;
-    }
-
-
+    /**
+     * Set the file this Processor instance is working on.
+     *
+     * @param $file
+     * @throws Exception
+     */
     public function setFile($file)
     {
 
@@ -204,7 +323,14 @@ class Processor {
     }
 
 
-    public function setFileStore($fileStore, $is301 = false) {
+    /**
+     * Set the location of the file this processor instance is working on.
+     *
+     * @param $fileStore
+     * @param bool $is301
+     * @throws Exception
+     */
+    private function setFileStore($fileStore, $is301 = false) {
         $fileStore301less = $fileStore;
 
         $this->error = false;
@@ -272,10 +398,10 @@ class Processor {
                 return $this->setFile($this->file . '/');
             }
 
-            foreach ($this->config['homeFiles'] AS $homeFile) { // TODO: rars shouldn't have slash
-                if ($this->isFile($fileStore . $homeFile)) {
-                    $fileStore = $fileStore . $homeFile;
-                    $fileStore301less = $fileStore301less . $homeFile;
+            foreach ($this->config['homeFiles'] AS $homeFile) {
+                if ($this->isFile(self::getRarName(rtrim($fileStore, '/') . '/' . $homeFile))) {
+                    $fileStore = self::getRarName(rtrim($fileStore, '/') . '/' . $homeFile);
+                    $fileStore301less = self::getRarName(rtrim($fileStore301less, '/') . '/' . $homeFile);
 
                     $this->isDir = false;
                     break;
@@ -292,98 +418,30 @@ class Processor {
         $this->fileStore301less = $fileStore301less;
     }
 
-    static public function fileExists($file) {
-        return self::isDir($file) || self::isFile($file);
-    }
-
-    static public function getZipArchivePath($file) {
-        return self::$store . explode('#', explode(self::$store, $file)[1])[0];
-    }
-
-    static public function isFile($file) {
-        if (substr($file, 0, 6) === 'zip://') {
-            $zip = ZipFactory::get(self::getZipArchivePath($file));
-            return $zip->locateName(explode('#', $file)[1]) !== false;
-        }
-        elseif (substr($file, 0, 6) === 'rar://') {
-            $zip = RarFactory::get(self::getZipArchivePath($file));
-            return @$zip->getEntry(explode('#', $file)[1]) !== false;
-        }
-        else {
-            return file_exists($file);
-        }
-    }
-
-    static public function isDir($file) {
-        if (substr($file, 0, 6) === 'zip://') {
-            if (substr($file, -1, 1) === '#') return true;
-
-            $zip = ZipFactory::get(self::getZipArchivePath($file));
-            return $zip->locateName(explode('#', $file)[1] . "/") !== false;
-        }
-        elseif (substr($file, 0, 6) === 'rar://') {
-            if (substr($file, -1, 1) === '#') return true;
-
-            $zip = RarFactory::get(self::getZipArchivePath($file));
-            return @$zip->getEntry(explode('#', $file)[1] . "/") !== false;
-        }
-        else {
-            return is_dir($file);
-        }
-    }
-
-    static public function getFileContents($file) {
-        if (substr($file, 0, 6) === 'zip://') {
-            $zip = ZipFactory::get(self::getZipArchivePath($file));
-            return $zip->getFromName(explode('#', $file)[1]);
-        }
-        elseif (substr($file, 0, 6) === 'rar://') {
-            $zip = RarFactory::get(self::getZipArchivePath($file));
-            return stream_get_contents(@$zip->getEntry(explode('#', $file)[1])->getStream());
-        }
-        else {
-            return @file_get_contents($file);
-        }
-    }
-
-    public function getMimeType() {
-        if ($this->mimeType)
-            return $this->mimeType;
-
-        $file = $this->getFileStore();
-
-        if (in_array(substr($file, 0, 6), ['zip://', 'rar://'])) {
-            $file = self::getRarName($file);
-        }
-
-        $finfo = finfo_open(FILEINFO_MIME_TYPE); // return mime type ala mimetype extension
-        $mimeType = @finfo_file($finfo, $file);
-        finfo_close($finfo);
-
-        return $this->mimeType = $mimeType;
-    }
-
-    public static function getRarName($file) {
-        list($a, $b) = explode('#', $file);
-
-        if (substr($file, 0, 6) === 'rar://')
-            return $a . '#' . urlencode(ltrim($b, '/'));
-        else
-            return $a . '#' . ltrim($b, '/');
-    }
-
+    /**
+     * @return string {@see Processor#file}
+     */
     public function getFile() {
         return $this->file;
     }
 
+    /**
+     * @return string {@see Processor#fileStore}
+     */
     public function getFileStore() {
         return $this->fileStore;
     }
 
+    /**
+     * @param $fileType {@see Processor#fileType}
+     */
     public function setFileType($fileType) {
         $this->fileType = $fileType;
     }
 
+    /**
+     * @return string {@see Processor#file}
+     */
     public function getFileType() {
         if (!$this->fileType) {
             $fileFileParts = explode('.', $this->fileParts['file']);
@@ -400,8 +458,27 @@ class Processor {
         return $this->fileType;
     }
 
-    public static function getScriptPath() {
-        return self::$host . $_SERVER['PHP_SELF'];
+    /**
+     * Detect the mimetype of a file. This result will be cached to the object.
+     *
+     * @param $file
+     * @return bool
+     */
+    public function getMimeType() {
+        if ($this->mimeType)
+            return $this->mimeType;
+
+        $file = $this->getFileStore();
+
+        if (in_array(substr($file, 0, 6), ['zip://', 'rar://'])) {
+            $file = self::getRarName($file);
+        }
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE); // return mime type ala mimetype extension
+        $mimeType = @finfo_file($finfo, $file);
+        finfo_close($finfo);
+
+        return $this->mimeType = $mimeType;
     }
 
 
@@ -493,6 +570,12 @@ class Processor {
     }
 
 
+    /**
+     * Remove ignored GETs form a URL.
+     *
+     * @param $url
+     * @return string
+     */
     public function removeBannedGET($url) {
         return preg_replace_callback('/(\?|&)(' . implode('|', $this->config['ignoreGETs']) . ')(=.*?)(&|$|\.)/', function ($match) {
             return ($match[4] === '&' ? $match[1] : $match[4]);
