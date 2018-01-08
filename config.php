@@ -34,7 +34,7 @@
 
         // Heritrix MirrorReader has a lot of trouble with 301s. This is a hack that will fix some instances of this, either "none" (which does nothing) or "dir" which will redirect any file to a directory with the same name and a "1" appended.
         // Note that the fixer script will generally remove most 301s, so after running it on a site you can set this parameter to none for a modest speed boost.
-        '301mode' => 'dir',
+        '301mode' => 'none',
 
         'recognisedExtensions' => ['asp', 'css', 'doc', 'docx', 'gif', 'htm', 'html', 'jpeg', 'jpg', 'js', 'pdf', 'php', 'png', 'rss', 'txt', 'xml'], // List of recognised extensions.
 
@@ -140,6 +140,10 @@
         'redirect' => [
             '/clientscript/misc.php' => '/misc.php',
         ],
+    ],
+
+    'alicesoft.wikia.com' => [
+        'scriptHacks' => ['removeAll']
     ]
 );
 ?>

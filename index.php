@@ -63,7 +63,15 @@ ini_set('pcre.backtrack_limit' , 1000000000);
  *********************************************/
 
 if (!isset($_GET['url'])) {
-    echo '<h1>Choose a Domain</h1><hr />';
+    ?>
+    <style>
+        body {
+            padding: 20px;
+        }
+    </style>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.3/css/bootstrap.min.css" integrity="sha384-Zug+QiDoJOrZ5t4lssLdxGhVrurbmBWopoEl+M6BdEfwnCJZtKxi1KgxUyJq13dy" crossorigin="anonymous">
+    <h1>Choose a Domain</h1><hr />
+    <?php
     $fileScan = scandir(\MirrorReader\Processor::$store);
 
     foreach ($fileScan AS $domain) {
@@ -83,23 +91,29 @@ if (!isset($_GET['url'])) {
 
 else {
     \MirrorReader\Factory::registerShutdownFunction();
+    \MirrorReader\ZipFactory::registerShutdownFunction();
+    \MirrorReader\RarFactory::registerShutdownFunction();
     $file = \MirrorReader\Factory::get($_GET['url']);
 
     if (isset($_GET['type'])) $file->setFileType($_GET['type']);
-    if ($file->error) {
-        die('Error: ' . $file->error . ': "' . $file->getFileStore() . '" (URL: "' . $_GET['url'] . '" => ' . $file->getFile() . '")');
-    }
-
-
 
     if ($file->isDir || isset($_GET['showDir'])) { // Allow (minimal) directory viewing. TODO: zips
-        echo '<h1>Directory: ' . $file->getFile() . '</h1><hr />';
+        echo '<style>
+            body {
+                padding: 20px;
+            }
+        </style>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.3/css/bootstrap.min.css" integrity="sha384-Zug+QiDoJOrZ5t4lssLdxGhVrurbmBWopoEl+M6BdEfwnCJZtKxi1KgxUyJq13dy" crossorigin="anonymous">
+        <h1>Directory: ' . $file->getFile() . '</h1><hr />';
 
-        foreach (scandir(rtrim($file->getFileStore(), '/') . '/') AS $fileName) { // List each one.
+        foreach (scandir(rtrim(dirname($file->getFileStore()), '/') . '/') AS $fileName) { // List each one.
             if (\MirrorReader\Processor::isSpecial($fileName)) continue; // Don't show ".", "..", etc.
 
-            echo "<a href=\"" . $file->getLocalPath($file->getFile()) . " \">$fileName</a><br />";
+            echo "<a href=\"" . $file->getLocalPath($file->getFile() . $fileName) . "\">$fileName</a><br />";
         }
+    }
+    elseif ($file->error) {
+        die('Error: ' . $file->error . ': "' . $file->getFileStore() . '" (URL: "' . $_GET['url'] . '" => ' . $file->getFile() . '")');
     }
     else {
         $file->echoContents();

@@ -58,6 +58,11 @@ class Processor {
     public $config;
 
     /**
+     * @var string The file's mime type, for caching purposes.
+     */
+    public $mimeType = null;
+
+    /**
      * @var string The file's contents, for caching purposes.
      */
     public $contents = null;
@@ -153,7 +158,7 @@ class Processor {
                 }
             }
 
-            if (!is_dir(self::$store . "{$this->fileParts['host']}/")) {
+            if (!self::isDir(self::$store . "{$this->fileParts['host']}/")) {
                 $archiveFound = false;
 
                 foreach (self::$archiveFormats AS $format) {
@@ -184,10 +189,10 @@ class Processor {
             }
 
 
-            if (!$this->fileExists($this->getFileStore())) {
+            if (!self::fileExists($this->getFileStore())) {
                 /* Check to see if the file exists when formatUrlGET is not run
                  * (This will probably be removed, since it was my own bug that introduced this possible issue.) */
-                if ($this->fileExists(self::$store . $this->fileParts['host'] . $this->fileParts['pathStore'])) {
+                if (self::fileExists(self::$store . $this->fileParts['host'] . $this->fileParts['pathStore'])) {
                     $this->setFileStore(self::$store . $this->fileParts['host'] . $this->fileParts['pathStore'], true);
                 }
 
@@ -204,71 +209,73 @@ class Processor {
 
         $this->error = false;
 
-        if (!$this->fileExists($fileStore) && $this->config['301mode'] == 'dir') { // Oh God, is this going to be weird...
+        if (!self::fileExists($fileStore)) { // Oh God, is this going to be weird...
             /* MirrorWriter assumes that urlencoded files should be decoded. Strictly speaking, this isn't necessarily wise -- there are cases where this behaviour can confuse things, for instance having %2f (/) in a filename.
              * Still, we will support the behaviour without assuming it by catching it here. (Does not catch the 301 "1"-appended behaviour, though we generally recommend renaming those directories anyway. */
-            if ($this->fileExists(urldecode($fileStore))) {
+            if (self::fileExists(urldecode($fileStore))) {
                 $this->setFileStore(urldecode($fileStore));
                 return;
             }
 
 
             /* 301 nonsense */
-            $dirParts = explode('/', $this->fileParts['path']); // Start by breaking up the directory into individual folders.
-            $is301 = false; // We need to set this to true once a substitution has occured, otherwise we'll never stop redirecting.
+            if ($this->config['301mode'] == 'dir') {
+                $dirParts = explode('/', $this->fileParts['path']); // Start by breaking up the directory into individual folders.
+                $is301 = false; // We need to set this to true once a substitution has occured, otherwise we'll never stop redirecting.
 
-            foreach ($dirParts AS $index => $part) { // After doing that, we'll build an array containing only unique directories.
-                if (!$part) unset($dirParts[$index]);
-            }
-            $dirParts = array_values($dirParts);
+                foreach ($dirParts AS $index => $part) { // After doing that, we'll build an array containing only unique directories.
+                    if (!$part) unset($dirParts[$index]);
+                }
+                $dirParts = array_values($dirParts);
 
-            foreach ($dirParts AS $index => &$part) { // Next, we run through the array we just created, both reading and making modifications to the mirror array we just created in which the directories will be changed to the "1" version if it exists.
-                $path = implode('/', array_slice($dirParts, 0, $index + 1)); // First, we create the normal path.
-                $array301 = array_slice($dirParts, 0, $index); // Then, we create the modified path.
-                array_push($array301, $dirParts[$index] . 1); // "
-                $path301 = implode('/', $array301);  // "
+                foreach ($dirParts AS $index => &$part) { // Next, we run through the array we just created, both reading and making modifications to the mirror array we just created in which the directories will be changed to the "1" version if it exists.
+                    $path = implode('/', array_slice($dirParts, 0, $index + 1)); // First, we create the normal path.
+                    $array301 = array_slice($dirParts, 0, $index); // Then, we create the modified path.
+                    array_push($array301, $dirParts[$index] . 1); // "
+                    $path301 = implode('/', $array301);  // "
 
-                if (count($dirParts)-1 === $index && is_file(self::$store . $this->fileParts['host'] . '/' . $path)) {
-                    if (substr($this->fileParts['path'], -1, 1) === '/') {
-                        $part .= '1/index.html';
+                    if (count($dirParts) - 1 === $index && is_file(self::$store . $this->fileParts['host'] . '/' . $path)) {
+                        if (substr($this->fileParts['path'], -1, 1) === '/') {
+                            $part .= '1/index.html';
+                        }
+
+                        else {
+                            break;
+                        }
                     }
-
+                    elseif (self::isDir(self::$store . $this->fileParts['host'] . '/' . $path)) {
+                        continue;
+                    }
+                    elseif (self::isDir(self::$store . $this->fileParts['host'] . '/' . $path301)) {
+                        $is301 = true;
+                        $part .= "1";
+                    }
                     else {
+                        $this->error = 'Could not resolve directory';
                         break;
                     }
                 }
-                elseif ($this->isDir(self::$store . $this->fileParts['host'] . '/' . $path)) {
-                    continue;
-                }
-                elseif ($this->isDir(self::$store . $this->fileParts['host'] . '/' . $path301)) {
-                    $is301 = true;
-                    $part .= "1";
-                }
-                else {
-                    $this->error = 'Could not resolve directory';
-                    break;
-                }
-            }
 
-            $path301 = implode('/', $dirParts); // And, finally, we implode the modified path and will use it as the 301 path.
+                $path301 = implode('/', $dirParts); // And, finally, we implode the modified path and will use it as the 301 path.
 
-            if (file_exists($this->formatUrlGET(self::$store . $this->fileParts['host'] . '/' . $path301))) {
-                $fileStore = $this->formatUrlGET(self::$store . $this->fileParts['host'] . '/' . $path301);
+                if (self::fileExists($this->formatUrlGET(self::$store . $this->fileParts['host'] . '/' . $path301))) {
+                    $fileStore = $this->formatUrlGET(self::$store . $this->fileParts['host'] . '/' . $path301);
+                }
             }
         }
 
 
-        if ($this->isDir($fileStore) || substr($fileStore, -1, 1) === '/') {
+        if (self::isDir($fileStore) || substr($fileStore, -1, 1) === '/') {
             $this->isDir = true;
 
             if (substr($this->file, -1, 1) !== '/') {
                 return $this->setFile($this->file . '/');
             }
 
-            foreach ($this->config['homeFiles'] AS $homeFile) {
-                if ($this->isFile(rtrim($fileStore, '/') . '/' . $homeFile)) {
-                    $fileStore = rtrim($fileStore, '/') . '/' . $homeFile;
-                    $fileStore301less = rtrim($fileStore301less, '/') . '/' . $homeFile;
+            foreach ($this->config['homeFiles'] AS $homeFile) { // TODO: rars shouldn't have slash
+                if ($this->isFile($fileStore . $homeFile)) {
+                    $fileStore = $fileStore . $homeFile;
+                    $fileStore301less = $fileStore301less . $homeFile;
 
                     $this->isDir = false;
                     break;
@@ -286,15 +293,25 @@ class Processor {
     }
 
     static public function fileExists($file) {
-        return self::isFile($file) || self::isDir($file);
+        return self::isDir($file) || self::isFile($file);
     }
 
     static public function isFile($file) {
         if (substr($file, 0, 6) === 'zip://') {
-            return (bool) @file_get_contents(self::getRarName($file));
+            $zipName = self::$store . explode('#', explode(self::$store, $file)[1])[0];
+            $zip = ZipFactory::get($zipName);
+
+            $fileParts = explode('#', $file);
+
+            return $zip->locateName($fileParts[1]) !== false;
         }
         elseif (substr($file, 0, 6) === 'rar://') {
-            return file_exists(self::getRarName($file));
+            $zipName = self::$store . explode('#', explode(self::$store, $file)[1])[0];
+            $zip = RarFactory::get($zipName);
+
+            $fileParts = explode('#', $file);
+
+            return @$zip->getEntry($fileParts[1]) !== false;
         }
         else {
             return file_exists($file);
@@ -303,10 +320,25 @@ class Processor {
 
     static public function isDir($file) {
         if (substr($file, 0, 6) === 'zip://') {
-            return substr($file, -1, 1) === '#' || (bool) @scandir(self::getRarName($file));
+            if (substr($file, -1, 1) === '#') return true;
+
+            $zipName = self::$store . explode('#', explode(self::$store, $file)[1])[0];
+            $zip = ZipFactory::get($zipName);
+
+            $fileParts = explode('#', $file);
+
+            return $zip->locateName($fileParts[1] . "/") !== false;
         }
         elseif (substr($file, 0, 6) === 'rar://') {
-            return (bool) @scandir(self::getRarName($file));
+            if (substr($file, -1, 1) === '#') return true;
+
+            $zipName = self::$store . explode('#', explode(self::$store, $file)[1])[0];
+            $zip = RarFactory::get($zipName);
+
+            $fileParts = explode('#', $file);
+
+            return @$zip->getEntry($fileParts[1] . "/") !== false;
+            //return (bool) @scandir(self::getRarName($file));
         }
         else {
             return is_dir($file);
@@ -321,21 +353,30 @@ class Processor {
         return @file_get_contents($file);
     }
 
-    public static function getMimeType($file) {
+    public function getMimeType() {
+        if ($this->mimeType)
+            return $this->mimeType;
+
+        $file = $this->getFileStore();
+
         if (in_array(substr($file, 0, 6), ['zip://', 'rar://'])) {
             $file = self::getRarName($file);
         }
 
         $finfo = finfo_open(FILEINFO_MIME_TYPE); // return mime type ala mimetype extension
-        $mimeType = finfo_file($finfo, $file);
+        $mimeType = @finfo_file($finfo, $file);
         finfo_close($finfo);
 
-        return $mimeType;
+        return $this->mimeType = $mimeType;
     }
 
     public static function getRarName($file) {
         list($a, $b) = explode('#', $file);
-        return $a . '#' . urlencode(ltrim($b, '/'));
+
+        if (substr($file, 0, 6) === 'rar://')
+            return $a . '#' . urlencode(ltrim($b, '/'));
+        else
+            return $a . '#' . ltrim($b, '/');
     }
 
     public function getFile() {
@@ -356,10 +397,10 @@ class Processor {
             $fileFileExt = $fileFileParts[count($fileFileParts) - 1];
 
             switch ($fileFileExt) { // Attempt to detect file type by extension.
-                case 'html': case 'htm': case 'shtml': case 'php': return 'html';  break;
-                case 'css':                                        return 'css';   break;
-                case 'js':                                         return 'js';    break;
-                default:                                           return 'other'; break;
+                case 'html': case 'htm': case 'shtml': case 'php': return $this->fileType = 'html';  break;
+                case 'css':                                        return $this->fileType = 'css';   break;
+                case 'js':                                         return $this->fileType = 'js';    break;
+                default:                                           return $this->fileType = 'other'; break;
             }
         }
 
@@ -402,13 +443,13 @@ class Processor {
      */
     public function echoContents() {
         $contents = $this->getContents();
-
+;
         switch ($this->getFileType()) {
             case 'html': header('Content-type: text/html' . '; charset=auto');       break; // TODO: charset
             case 'css':  header('Content-type: text/css' . '; charset=' . mb_detect_encoding($contents, 'auto'));        break;
             case 'js':   header('Content-type: text/javascript' . '; charset=' . mb_detect_encoding($contents, 'auto')); break;
             default:
-                header('Content-type: ' . self::getMimeType($this->getFileStore()));
+                header('Content-type: ' . $this->getMimeType());
                 break;
         }
 
