@@ -40,10 +40,7 @@
 
         'cacheStore' => '/var/www/cache/',
 
-        /* Additional Configuration Directives
-         * 'redirect' -- An array in the form of "find => replace" that redirects domains, directories, and files.
-         * 'mirror' -- An array in the form of "mirror" that means all domain lookups under this address are identical.
-         */
+        'redirect' => [], // An array in the form of "find => replace" that redirects domains, directories, and files.
     ),
 
     'www.youtube.com' => array(

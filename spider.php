@@ -57,244 +57,243 @@ function processFile($srcUrl, $lastFile = false) {
     if (strpos($srcUrl, '#') === 0)
         return;
 
-    $srcFile = \MirrorReader\Factory::get($srcUrl);
-    $destFile = $srcFile->getFileStore();
-//    if (substr($destFile, -1, 1) === '/') {
-//        $destFile .= 'index.html';
-//    }
-
 
     //if (stripos($srcFile->getFile(), "forums.") !== false)
     //    return;
-    if (stripos($srcFile->getFile(), "/forums/") !== false)
+    if (stripos($srcUrl, "/forums/") !== false)
         return;
 
     // Domain Exceptions
-    if (stripos($srcFile->getFile(), "wikipedia.org/") !== false ||
-        stripos($srcFile->getFile(), "youtube.com/") !== false ||
-        stripos($srcFile->getFile(), "mediawiki.org/") !== false ||
-        stripos($srcFile->getFile(), "facebook.com/") !== false ||
-        stripos($srcFile->getFile(), "reddit.com/") !== false ||
-        stripos($srcFile->getFile(), "twitter.com/") !== false ||
-        stripos($srcFile->getFile(), "tumblr.com/share/") !== false ||
-        stripos($srcFile->getFile(), "archive.org/") !== false ||
-        stripos($srcFile->getFile(), "scorecardresearch.com/") !== false ||
-        stripos($srcFile->getFile(), "pixel.wp.com/") !== false) {
+    if (stripos($srcUrl, "wikipedia.org/") !== false ||
+        stripos($srcUrl, "youtube.com/") !== false ||
+        stripos($srcUrl, "mediawiki.org/") !== false ||
+        stripos($srcUrl, "facebook.com/") !== false ||
+        stripos($srcUrl, "reddit.com/") !== false ||
+        stripos($srcUrl, "twitter.com/") !== false ||
+        stripos($srcUrl, "tumblr.com/share/") !== false ||
+        stripos($srcUrl, "archive.org/") !== false ||
+        stripos($srcUrl, "scorecardresearch.com/") !== false ||
+        stripos($srcUrl, "pixel.wp.com/") !== false) {
         $status = 'fail [domainban]';
         $color = 'orange';
     }
 
     // File Exceptions
-    elseif (stripos($srcFile->getFile(), "/api.php") !== false) {
+    elseif (stripos($srcUrl, "/api.php") !== false) {
         $status = 'fail [fileban]';
         $color = 'orange';
     }
 
     // Wiki Exceptions
-    elseif (stripos($srcFile->getFile(), "/wp-json/") !== false ||
-        stripos($srcFile->getFile(), "/oembed/") !== false ||
-        stripos($srcFile->getFile(), "/ebay/") !== false ||
-        stripos($srcFile->getFile(), "/ebaysearch/") !== false ||
-        stripos($srcFile->getFile(), "/amazon/") !== false ||
-        stripos($srcFile->getFile(), "/random/") !== false ||
-        stripos($srcFile->getFile(), "/feed/") !== false ||
-        stripos($srcFile->getFile(), ".msg") !== false ||
-        stripos($srcFile->getFile(), "prev_next") !== false ||
-        stripos($srcFile->getFile(), "/privmsg.php") !== false ||
-        stripos($srcFile->getFile(), "/posting.php") !== false ||
-        stripos($srcFile->getFile(), "/xmlrpc.php") !== false ||
-        stripos($srcFile->getFile(), "Special:") !== false ||
-        stripos($srcFile->getFile(), "Talk:") !== false ||
-        stripos($srcFile->getFile(), "User:") !== false) {
+    elseif (stripos($srcUrl, "/wp-json/") !== false ||
+        stripos($srcUrl, "/oembed/") !== false ||
+        stripos($srcUrl, "/ebay/") !== false ||
+        stripos($srcUrl, "/ebaysearch/") !== false ||
+        stripos($srcUrl, "/amazon/") !== false ||
+        stripos($srcUrl, "/random/") !== false ||
+        stripos($srcUrl, "/feed/") !== false ||
+        stripos($srcUrl, ".msg") !== false ||
+        stripos($srcUrl, "prev_next") !== false ||
+        stripos($srcUrl, "/privmsg.php") !== false ||
+        stripos($srcUrl, "/posting.php") !== false ||
+        stripos($srcUrl, "/xmlrpc.php") !== false ||
+        stripos($srcUrl, "Special:") !== false ||
+        stripos($srcUrl, "Talk:") !== false ||
+        stripos($srcUrl, "User:") !== false) {
         $status = 'fail [wikiban]';
         $color = 'orange';
     }
 
     // Protocol ban
-    elseif (stripos($srcFile->getFile(), "javascript:") !== false ||
-        stripos($srcFile->getFile(), "mailto:") !== false ||
-        stripos($srcFile->getFile(), "irc:") !== false ||
-        stripos($srcFile->getFile(), "/aim:") !== false) {
+    elseif (stripos($srcUrl, "javascript:") !== false ||
+        stripos($srcUrl, "mailto:") !== false ||
+        stripos($srcUrl, "irc:") !== false ||
+        stripos($srcUrl, "/aim:") !== false) {
         $status = 'fail [protocolban]';
         $color = 'orange';
     }
 
     // GET Ban
-    elseif (preg_match("/(&|\\?)(p=|sort=|do=add|do=sendtofriend|do=getinfo|week=|view=next|view=previous|replytocom|advertisehereid=|oldid|mobileaction|veaction=edit|action=pm|action=formcreate|action=edit|action=create|action=history|action=info|action=printpage|action=register|action=lostpw|postingmode=|printable|parent=|redirect)/", $srcFile->getFile()) !== 0) {
+    elseif (preg_match("/(&|\\?)(p=|sort=|do=add|do=sendtofriend|do=getinfo|do=markread|week=|view=next|view=previous|replytocom|advertisehereid=|oldid|mobileaction|veaction=edit|action=pm|action=formcreate|action=edit|action=create|action=history|action=info|action=printpage|action=register|action=lostpw|postingmode=|printable|parent=|redirect)/", $srcUrl) !== 0) {
         $status = 'fail [bad get]';
         $color = 'orange';
     }
-    elseif (preg_match("/(newreply|sendmessage|newthread|cron|external|private|printthread|register|search|showpost)\.php/", $srcFile->getFile()) !== 0) {
+    elseif (preg_match("/(newreply|sendmessage|newthread|cron|external|private|printthread|register|search|showpost)\.php/", $srcUrl) !== 0) {
         $status = 'fail [bad page]';
         $color = 'orange';
     }
-    elseif (preg_match("/\/clientscript\//", $srcFile->getFile()) !== 0) {
+    elseif (preg_match("/\/clientscript\//", $srcUrl) !== 0) {
         $status = 'fail [bad clientscript]';
         $color = 'orange';
     }
-    elseif (preg_match("/$match/", $srcFile->getFile()) !== 1) {
+    elseif (preg_match("/$match/", $srcUrl) !== 1) {
         $status = 'fail [badmatch]';
         $color = 'orange';
     }
-    elseif (!$destFile) {
-        $status = 'fail [nodest - you may need to create the root dir first]';
-        $color = 'orange';
-    }
     else {
-        if (!is_dir(dirname($destFile))) {
-            if (!\MirrorReader\MkdirIndex::execute(dirname($destFile))) {
-                $status = 'fail [direrror]';
-                $color = 'red';
-            }
-        }
+        $srcFile = \MirrorReader\Factory::get($srcUrl);
+        $destFile = $srcFile->getFileStore();
 
-
-        if (isset($status)) {
-
-        }
-        elseif (in_array($srcUrl, $ignore)) {
-            $status = 'fail [ignored]';
+        if (!$destFile) {
+            $status = 'fail [nodest - you may need to create the root dir first]';
             $color = 'orange';
         }
-
-        elseif (strlen(basename($destFile)) > 254) {
-            $color = 'purple';
-            $status = 'toolong';
-        }
-
-        elseif (is_file($destFile)
-            && filesize($destFile) > 0
-            && (filesize($destFile) > 1024
-                || (strstr(file_get_contents($destFile), "Moved") === false
-                    && strstr(file_get_contents($destFile), "Found") === false))) {
-
-            if ($destFile != $srcFile->fileStore301less && !file_exists(dirname($srcFile->fileStore301less))) {
-                if (!is_dir(dirname($srcFile->fileStore301less)) && dirname($destFile) != dirname($srcFile->fileStore301less)) {
-                    if (!is_dir(dirname(dirname($srcFile->fileStore301less))))
-                        mkdir(dirname(dirname($srcFile->fileStore301less)), 0777, true) or die('Could not create directory: ' . dirname(dirname($srcFile->fileStore301less)));
-
-                    rename(dirname($destFile), dirname($srcFile->fileStore301less)) or die("Failed to rename 301 dir " . dirname($destFile) . " to " . dirname($srcFile->fileStore301less));
-                    fwrite($successFile, "$srcUrl: renamed 301 directory " . dirname($destFile) . " to " . dirname($srcFile->fileStore301less) . "\n");
-                }
-                else {
-                    if (!is_dir(dirname($srcFile->fileStore301less)))
-                        mkdir(dirname($srcFile->fileStore301less), 0777, true) or die('Could not create directory: ' . dirname($srcFile->fileStore301less));
-
-                    rename($destFile, $srcFile->fileStore301less) or die("Failed to rename 301 file $destFile to " . $srcFile->fileStore301less);
-                    fwrite($successFile, "$srcUrl: renamed 301 file $destFile to " . $srcFile->fileStore301less . "\n");
-                }
-
-                $status = 'renamed [' . $srcFile->fileStore301less . ']';
-                $color = 'blue';
-            }
-            else {
-                $status = 'exists [' . $srcFile->fileStore301less . ']';
-                $color = 'black';
-            }
-
-        }
-
         else {
-            $path = fopen($srcUrl, 'r');
-            $redirectLocation = false;
-            $status = false;
-            $headers = [];
-            $headerSet = 0;
+            if (!is_dir(dirname($destFile))) {
+                if (!\MirrorReader\MkdirIndex::execute(dirname($destFile))) {
+                    $status = 'fail [direrror]';
+                    $color = 'red';
+                }
+            }
 
-             foreach ($http_response_header AS $header) {
-                if (stripos($header, 'HTTP/') === 0) {
-                    $headerSet++;
 
-                    if (strpos($header, '301') !== false || strpos($header, '302') !== false) {
-                        $headers[$headerSet]['status'] = 'redirect';
-                    }
-                    else if (strpos($header, '200') === false) {
-                        $headers[$headerSet]['status'] = 'error';
-                        $headers[$headerSet]['httpCode'] = $header;
+            if (isset($status)) {
+
+            }
+            elseif (in_array($srcUrl, $ignore)) {
+                $status = 'fail [ignored]';
+                $color = 'orange';
+            }
+
+            elseif (strlen(basename($destFile)) > 254) {
+                $color = 'purple';
+                $status = 'toolong';
+            }
+
+            elseif (is_file($destFile)
+                && filesize($destFile) > 0
+                && (filesize($destFile) > 1024
+                    || (strstr(file_get_contents($destFile), "Moved") === false
+                        && strstr(file_get_contents($destFile), "Found") === false))) {
+
+                if ($destFile != $srcFile->fileStore301less && !file_exists(dirname($srcFile->fileStore301less))) {
+                    if (!is_dir(dirname($srcFile->fileStore301less)) && dirname($destFile) != dirname($srcFile->fileStore301less)) {
+                        if (!is_dir(dirname(dirname($srcFile->fileStore301less))))
+                            mkdir(dirname(dirname($srcFile->fileStore301less)), 0777, true) or die('Could not create directory: ' . dirname(dirname($srcFile->fileStore301less)));
+
+                        rename(dirname($destFile), dirname($srcFile->fileStore301less)) or die("Failed to rename 301 dir " . dirname($destFile) . " to " . dirname($srcFile->fileStore301less));
+                        fwrite($successFile, "$srcUrl: renamed 301 directory " . dirname($destFile) . " to " . dirname($srcFile->fileStore301less) . "\n");
                     }
                     else {
-                        $headers[$headerSet]['status'] = 'okay';
+                        if (!is_dir(dirname($srcFile->fileStore301less)))
+                            mkdir(dirname($srcFile->fileStore301less), 0777, true) or die('Could not create directory: ' . dirname($srcFile->fileStore301less));
+
+                        rename($destFile, $srcFile->fileStore301less) or die("Failed to rename 301 file $destFile to " . $srcFile->fileStore301less);
+                        fwrite($successFile, "$srcUrl: renamed 301 file $destFile to " . $srcFile->fileStore301less . "\n");
+                    }
+
+                    $status = 'renamed [' . $srcFile->fileStore301less . ']';
+                    $color = 'blue';
+                }
+                else {
+                    $status = 'exists [' . $srcFile->fileStore301less . ']';
+                    $color = 'black';
+                }
+
+            }
+
+            else {
+                $path = fopen($srcUrl, 'r');
+                $redirectLocation = false;
+                $status = false;
+                $headers = [];
+                $headerSet = 0;
+
+                foreach ($http_response_header AS $header) {
+                    if (stripos($header, 'HTTP/') === 0) {
+                        $headerSet++;
+
+                        if (strpos($header, '301') !== false || strpos($header, '302') !== false) {
+                            $headers[$headerSet]['status'] = 'redirect';
+                        }
+                        else if (strpos($header, '200') === false) {
+                            $headers[$headerSet]['status'] = 'error';
+                            $headers[$headerSet]['httpCode'] = $header;
+                        }
+                        else {
+                            $headers[$headerSet]['status'] = 'okay';
+                        }
+                    }
+
+                    if (stripos($header, 'location') !== false) {
+                        $headers[$headerSet]['location'] = explode(': ', $header)[1];
                     }
                 }
 
-                if (stripos($header, 'location') !== false) {
-                    $headers[$headerSet]['location'] = explode(': ', $header)[1];
-                }
-            }
+                if ($headers[$headerSet]['status'] === 'okay') {
+                    if ($headerSet > 1
+                        && $headers[$headerSet - 1]['status'] === 'redirect'
+                        && parse_url($headers[$headerSet - 1]['location'], PHP_URL_PATH) !== parse_url($srcUrl, PHP_URL_PATH)) {// Only bother processing path changes. Cross-domain detect is possible, but opens up too many complexities when talking about archiving for me to want to deal with them
 
-            if ($headers[$headerSet]['status'] === 'okay') {
-                if ($headerSet > 1
-                    && $headers[$headerSet - 1]['status'] === 'redirect'
-                    && parse_url($headers[$headerSet - 1]['location'], PHP_URL_PATH) !== parse_url($srcUrl, PHP_URL_PATH)) {// Only bother processing path changes. Cross-domain detect is possible, but opens up too many complexities when talking about archiving for me to want to deal with them
+                        $redirectLocation = $headers[$headerSet - 1]['location'];
 
-                    $redirectLocation = $headers[$headerSet - 1]['location'];
+                        echo $srcUrl;
+                        var_dump($headers);
+                        var_dump($http_response_header);
 
-                    echo $srcUrl;
-                    var_dump($headers);
-                    var_dump($http_response_header);
+                        $redirectObject = \MirrorReader\Factory::get($redirectLocation);
 
-                    $redirectObject = \MirrorReader\Factory::get($redirectLocation);
+                        if (\MirrorReader\Processor::isFile($redirectObject->getFileStore())) {
+                            $contents = $redirectObject->getContents();
 
-                    if (\MirrorReader\Processor::isFile($redirectObject->getFileStore())) {
-                        $contents = $redirectObject->getContents();
+                            if ($redirectObject->getFileType() === 'html') {
+                                file_put_contents($destFile, '<!-- MirrorReader Redirect Page --><html><head><title>Internal Redirect</title><meta http-equiv="refresh" content="0; url=' . htmlspecialchars($redirectLocation) . '"></head><body><center><a href="' . htmlspecialchars($redirectLocation) . '">Follow redirect.</a></center></body></html>');
 
-                        if ($redirectObject->getFileType() === 'html') {
-                            file_put_contents($destFile, '<!-- MirrorReader Redirect Page --><html><head><title>Internal Redirect</title><meta http-equiv="refresh" content="0; url=' . htmlspecialchars($redirectLocation) . '"></head><body><center><a href="' . htmlspecialchars($redirectLocation) . '">Follow redirect.</a></center></body></html>');
+                                $status = 'redirect file';
+                                $color = 'teal';
 
-                            $status = 'redirect file';
-                            $color = 'teal';
+                                fwrite($successFile, "$srcUrl\t$redirectLocation => $destFile\t$status\n");
+                            }
+                            else {
+                                file_put_contents($destFile, $contents);
 
-                            fwrite($successFile, "$srcUrl\t$redirectLocation => $destFile\t$status\n");
+                                $status = 'success';
+                                $color = 'green';
+                            }
                         }
-                        else {
-                            file_put_contents($destFile, $contents);
 
+                        elseif (file_put_contents($destFile, $path)) {
+                            $status = 'success';
+                            $color = 'green';
+                        }
+
+                    }
+                    elseif (!is_file($destFile) && is_dir($destFile) && !file_exists("$destFile/index.html")) {
+                        if (file_put_contents("$destFile/index.html", $path) or die("Failed to write to $destFile/index.html")) {
+                            $status = 'success [index.html]';
+                            $color = 'green';
+                        }
+                    }
+                    else {
+                        if (file_put_contents($destFile, $path)) {
                             $status = 'success';
                             $color = 'green';
                         }
                     }
-                    
-                    elseif (file_put_contents($destFile, $path)) {
-                        $status = 'success';
-                        $color = 'green';
-                    }
-
-                }
-                elseif (!is_file($destFile) && is_dir($destFile) && !file_exists("$destFile/index.html")) {
-                    if (file_put_contents("$destFile/index.html", $path) or die("Failed to write to $destFile/index.html")) {
-                        $status = 'success [index.html]';
-                        $color = 'green';
-                    }
                 }
                 else {
-                    if (file_put_contents($destFile, $path)) {
-                        $status = 'success';
-                        $color = 'green';
-                    }
+                    $status = 'fail [' . $headers[$headerSet]['httpCode'] . ']';
+                    $color = 'red';
+                    $ignore[] = $srcUrl;
                 }
-            }
-            else {
-                $status = 'fail [' . $headers[$headerSet]['httpCode'] . ']';
-                $color = 'red';
-                $ignore[] = $srcUrl;
-            }
 
 
-            if (!$status) {
-                $status = 'fail [unknown]';
-                $color = 'red';
-                $ignore[] = $srcUrl;
+                if (!$status) {
+                    $status = 'fail [unknown]';
+                    $color = 'red';
+                    $ignore[] = $srcUrl;
+                }
             }
         }
     }
 
 
-    fwrite($writeFile, "<tr style='color:$color;'><td>" . $srcUrl . "</td><td>" . $destFile . "</td><td>" . $status . "</td></tr>");
+    fwrite($writeFile, "<tr style='color:$color;'><td>" . $srcUrl . "</td><td>" . ($destFile ?? "") . "</td><td>" . $status . "</td></tr>");
 
     // If the file was successfully processed, log it and recurse
     if ($color === 'green') {
         // Sleep for the given seconds before continuing
-        usleep(1000000);
+        usleep(500000);
 
         // Write to Files
         fwrite($successFile, "$lastFile\t$srcUrl\t$destFile\t$status\n");
@@ -313,7 +312,7 @@ function processFile($srcUrl, $lastFile = false) {
 
     // If the file was not successfully processed, log it.
     elseif ($color === 'red') {
-        usleep(5000000);
+        usleep(10000000);
         fwrite($failFile, "$lastFile\t$srcUrl\t$destFile\t$status\n");
     }
 }

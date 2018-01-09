@@ -53,9 +53,6 @@ ini_set('display_errors', 'On');
 require(__DIR__ . '/vendor/autoload.php');
 require('config.php');
 
-// Allow Crazy Regular Expressions (TODO: probably rewrite so we don't need them. I have observed this causing script execution to take more than 30 seconds.)
-ini_set('pcre.backtrack_limit' , 1000000000);
-
 
 /*********************************************
  *** DISPLAY DOMAIN LIST, IF NOT URL GIVEN ***
@@ -110,7 +107,7 @@ else {
         foreach (scandir(rtrim(dirname($file->getFileStore()), '/') . '/') AS $fileName) { // List each one.
             if (\MirrorReader\Processor::isSpecial($fileName)) continue; // Don't show ".", "..", etc.
 
-            echo "<a href=\"" . $file->getLocalPath($file->getFile() . $fileName) . "\">$fileName</a><br />";
+            echo "<a href=\"" . \MirrorReader\Processor::getLocalPath($file->getFile() . $fileName) . "\">$fileName</a><br />";
         }
     }
     elseif ($file->error) {
