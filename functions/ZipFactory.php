@@ -8,22 +8,11 @@ class ZipFactory {
     public static $processorCollection = [];
 
     public static function registerShutdownFunction() {
-        register_shutdown_function(function() {
-            foreach (self::$processorCollection AS $file => $processor) {
-                apcu_store("mirrorreader_zip_{$file}", $processor);
-            }
-        });
     }
 
     public static function get($file) : \ZipArchive {
         if (isset(self::$processorCollection[$file])) {
             return self::$processorCollection[$file];
-        }
-        if (apcu_exists("mirrorreader_zip_{$file}")) {
-            $zip = apcu_fetch("mirrorreader_zip_{$file}");
-            if ($zip->numFiles) {
-                return $zip;
-            }
         }
 
         $processor = new \ZipArchive();
