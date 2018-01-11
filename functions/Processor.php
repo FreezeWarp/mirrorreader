@@ -103,7 +103,7 @@ class Processor {
      * @return string
      */
     public static function getLocalPath($path, $hash = '') {
-        return dirname(self::getScriptPath()) . '/' . $path . $hash;
+        return dirname(self::getScriptPath()) . '/' . $path . ($hash ? '#' . $hash : '');
     }
 
     /**
@@ -140,12 +140,30 @@ class Processor {
      * @return bool
      */
     public static function getRarName($file) {
-        list($a, $b) = explode('#', $file);
+        @list($a, $b) = explode('#', $file);
 
-        if (substr($file, 0, 6) === 'rar://')
+        if (self::isRarPath($file))
             return $a . '#' . urlencode(ltrim($b, '/'));
-        else
+        elseif (self::isZipPath($file))
             return $a . '#' . ltrim($b, '/');
+        else
+            return $file;
+    }
+
+    /**
+     * @param $file
+     * @return bool If the path is that of a rar stream, i.e. begins with rar://
+     */
+    static public function isRarPath($file) : bool {
+        return substr($file, 0, 6) === 'rar://';
+    }
+
+    /**
+     * @param $file
+     * @return bool If the path is that of a zip stream, i.e. begins with zip://
+     */
+    static public function isZipPath($file) : bool {
+        return substr($file, 0, 6) === 'zip://';
     }
 
     /**
@@ -155,11 +173,11 @@ class Processor {
      * @return bool
      */
     static public function isFile($file) {
-        if (substr($file, 0, 6) === 'zip://') {
+        if (self::isZipPath($file)) {
             $zip = ZipFactory::get(self::getZipArchivePath($file));
             return $zip->locateName(explode('#', $file)[1]) !== false;
         }
-        elseif (substr($file, 0, 6) === 'rar://') {
+        elseif (self::isRarPath($file)) {
             $zip = RarFactory::get(self::getZipArchivePath($file));
             return @$zip->getEntry(explode('#', $file)[1]) !== false;
         }
@@ -175,14 +193,14 @@ class Processor {
      * @return bool
      */
     static public function isDir($file) {
-        if (substr($file, 0, 6) === 'zip://') {
-            if (substr($file, -1, 1) === '#') return true;
+        if (self::isZipPath($file)) {
+            if (substr($file, -1, 1) === '#') return true; // The path ends with a #, and thus refers to the root of the archive
 
             $zip = ZipFactory::get(self::getZipArchivePath($file));
             return $zip->locateName(explode('#', $file)[1] . "/") !== false;
         }
-        elseif (substr($file, 0, 6) === 'rar://') {
-            if (substr($file, -1, 1) === '#') return true;
+        elseif (self::isRarPath($file)) {
+            if (substr($file, -1, 1) === '#') return true; // The path ends with a #, and thus refers to the root of the archive
 
             $zip = RarFactory::get(self::getZipArchivePath($file));
             return @$zip->getEntry(explode('#', $file)[1] . "/") !== false;
@@ -199,11 +217,11 @@ class Processor {
      * @return bool
      */
     static public function getFileContents($file) {
-        if (substr($file, 0, 6) === 'zip://') {
+        if (self::isZipPath($file)) {
             $zip = ZipFactory::get(self::getZipArchivePath($file));
             return $zip->getFromName(explode('#', $file)[1]);
         }
-        elseif (substr($file, 0, 6) === 'rar://') {
+        elseif (self::isRarPath($file)) {
             $zip = RarFactory::get(self::getZipArchivePath($file));
             return stream_get_contents(@$zip->getEntry(explode('#', $file)[1])->getStream());
         }
@@ -226,10 +244,6 @@ class Processor {
      */
     public function setFile($file)
     {
-
-        //if (stripos($file, 'http:') !== 0 && stripos($file, 'https:') !== 0 && stripos($file, 'mailto:') !== 0 && stripos($file, 'ftp:') !== 0) { // Domain Not Included, Add It
-        //    $file = 'http://' . $file;
-        //}
 
         $fileParts = parse_url($file);
         $fileParts['path'] = $fileParts['path'] ?? '';
@@ -269,17 +283,20 @@ class Processor {
             $this->config = array_merge(self::$domainConfiguration['default'], isset(self::$domainConfiguration[$this->fileParts['host']]) ? self::$domainConfiguration[$this->fileParts['host']] : []);
 
             /* Handle $this->config Redirects */
-            if (isset($this->config['redirect'])) {
-                foreach ($this->config['redirect'] AS $find => $replace) { //echo $find, "\n", $replace; die();
-                    if (strpos($this->file, $find) !== false) {
-                        return $this->setFile(str_replace($find, $replace, $this->file));
-                    }
+            foreach ($this->config['redirect'] AS $find => $replace) {
+                if (strpos($this->file, $find) !== false) {
+                    return $this->setFile(str_replace($find, $replace, $this->file));
                 }
             }
 
-            if (!self::isDir(self::$store . "{$this->fileParts['host']}/")) {
+            /* Look for the domain in the store */
+            if (self::isDir(self::$store . "{$this->fileParts['host']}/")) { // Look for the domain in a directory
+                $this->setFileStore($this->formatUrlGET(self::$store . $this->fileParts['host'] . $this->fileParts['pathStore']));
+            }
+            else { // No directory found
                 $archiveFound = false;
 
+                /* Look for the domain in an archive file */
                 foreach (self::$archiveFormats AS $format) {
                     if (is_file(self::$store . "{$this->fileParts['host']}.$format")) {
                         $archiveFound = true;
@@ -303,21 +320,18 @@ class Processor {
                     return;
                 }
             }
-            else {
-                $this->setFileStore($this->formatUrlGET(self::$store . $this->fileParts['host'] . $this->fileParts['pathStore']));
-            }
 
 
             if (!self::fileExists($this->getFileStore())) {
                 /* Check to see if the file exists when formatUrlGET is not run
                  * (This will probably be removed, since it was my own bug that introduced this possible issue.) */
-                if (self::fileExists(self::$store . $this->fileParts['host'] . $this->fileParts['pathStore'])) {
+                /*if (self::fileExists(self::$store . $this->fileParts['host'] . $this->fileParts['pathStore'])) {
                     $this->setFileStore(self::$store . $this->fileParts['host'] . $this->fileParts['pathStore'], true);
                 }
 
-                else {
+                else {*/
                     $this->error = 'File not found: ' . $this->getFileStore();
-                }
+                //}
             }
         }
     }
@@ -390,8 +404,7 @@ class Processor {
             }
         }
 
-
-        if (self::isDir($fileStore) || substr($fileStore, -1, 1) === '/') {
+        if (substr($fileStore, -1, 1) === '/' || self::isDir($fileStore)) {
             $this->isDir = true;
 
             if (substr($this->file, -1, 1) !== '/') {
@@ -448,10 +461,14 @@ class Processor {
             $fileFileExt = $fileFileParts[count($fileFileParts) - 1];
 
             switch ($fileFileExt) { // Attempt to detect file type by extension.
-                case 'html': case 'htm': case 'shtml': case 'php': return $this->fileType = 'html';  break;
-                case 'css':                                        return $this->fileType = 'css';   break;
-                case 'js':                                         return $this->fileType = 'js';    break;
-                default:                                           return $this->fileType = 'other'; break;
+                case 'html': case 'htm': case 'shtml':
+                case 'php':  case 'asp': case 'aspx':
+                    return $this->fileType = 'html';
+                    break;
+
+                case 'css': return $this->fileType = 'css';   break;
+                case 'js':  return $this->fileType = 'js';    break;
+                default:    return $this->fileType = 'other'; break;
             }
         }
 
@@ -470,7 +487,7 @@ class Processor {
 
         $file = $this->getFileStore();
 
-        if (in_array(substr($file, 0, 6), ['zip://', 'rar://'])) {
+        if (self::isZipPath($file) || self::isRarPath($file)) {
             $file = self::getRarName($file);
         }
 
@@ -486,6 +503,7 @@ class Processor {
      * @return string The contents of a file, transformed according to the filetype.
      */
     public function getContents() {
+
         if ($this->error)
             throw new Exception('Cannot getContents() when an error has been triggered: ' . $this->error);
 
@@ -513,7 +531,7 @@ class Processor {
      */
     public function echoContents() {
         $contents = $this->getContents();
-;
+
         switch ($this->getFileType()) {
             case 'html': header('Content-type: text/html' . '; charset=auto');       break; // TODO: charset
             case 'css':  header('Content-type: text/css' . '; charset=' . mb_detect_encoding($contents, 'auto'));        break;
@@ -652,7 +670,7 @@ class Processor {
                     while (substr($url, 0, 3) === '../') {
                         $url = substr($url, 3);
 
-                        if ($urlDirectoryLocal) $urlDirectoryLocal = $this->filePart($urlDirectoryLocal, 'dir'); // One case has been found where "../" is used at the root level. The browser, as a result, treats it as a "./" instead. ...I had no fricken clue this was even possible.
+                        if ($urlDirectoryLocal) $urlDirectoryLocal = self::filePart($urlDirectoryLocal, 'dir'); // One case has been found where "../" is used at the root level. The browser, as a result, treats it as a "./" instead. ...I had no fricken clue this was even possible.
                     }
 
                     $url = "$urlDirectoryLocal/{$url}";
@@ -663,21 +681,21 @@ class Processor {
         }
 
 
-        $urlObject = Factory::get($url);
+        $urlParts = parse_url($url);
 
         // A format URL callback exists; use it to return the formatted URL.
         if (function_exists($this->formatUrlCallback)) {
             $function = $this->formatUrlCallback;
-            return $function($urlObject->getFile(), $this->getFile());
+            return $function($url, $this->getFile());
         }
 
         // The URL has passthru mode enabled; return the original path unaltered..
-        elseif ($urlObject->config['passthru'])
-            return $urlObject->getFile();
+        elseif (array_merge(@self::$domainConfiguration['default'], @self::$domainConfiguration[$urlParts['host']])['passthru'])
+            return $url;
 
         // Normal mode: append the URL to a the $_GET['url'] parameter of our script.
         else
-            return self::getLocalPath($this->removeBannedGET($urlObject->getFile()), isset($urlObject->fileParts['fragment']) ? '#' . $urlObject->fileParts['fragment'] : '');
+            return self::getLocalPath($this->removeBannedGET(explode('#', $url)[0]), @explode('#', $url)[1]);
     }
 
 
@@ -716,7 +734,6 @@ class Processor {
             foreach ($this->config['htmlReplacePre'] AS $find => $replace) $contents = str_replace($find, $replace, $contents);
         }
 
-
         /* Base URL Detection */
         preg_match_all('/\<base href="(.+?)"\>/is', $contents, $baseMatch);
         if (isset($baseMatch[1][0])) {
@@ -733,7 +750,6 @@ class Processor {
         $contents = str_replace('--!>', '-->', $contents);
         $contents = str_replace('//-->', '-->', $contents); // This one may not actually break things.
 
-
         /* Remove All Scripts Hack, if Enabled
          * (very useful for a small number of sites, like Wikia and many silly news sites) */
         if (in_array('removeAll', $this->config['scriptHacks'])) {
@@ -746,19 +762,6 @@ class Processor {
             // Remove all script tags.
             $contents = preg_replace('/\<script[^\>]*\>(.*?)\<\/script\>/is', '', $contents);
         }
-
-        /*if (in_array('removeAll', $this->config['scriptHacks'])) {
-            $noscriptList = $doc->getElementsByTagName("noscript");
-
-            for ($i = 0; $i < $noscriptList->length; $i++) {
-                $fragment = $doc->createDocumentFragment();
-                while ($noscriptList->item($i)->childNodes->length > 0) {
-                    $fragment->appendChild($noscriptList->item($i)->childNodes->item(0));
-                }
-                $noscriptList->item($i)->parentNode->replaceChild($fragment, $noscriptList->item($i));
-            }
-        }*/
-
 
         /* Fix Missing HTML Elements */
         // Hack to ensure there's an opening head tag if there's a closing head tag (...yes, that happens).
@@ -828,7 +831,6 @@ class Processor {
             $styleList->item($i)->nodeValue = htmlentities($this->processCSS($styleList->item($i)->nodeValue, true));
         }
 
-
         // Process IMG, VIDEO, AUDIO, IFRAME tags
         foreach (array('img', 'video', 'audio', 'source', 'frame', 'iframe', 'applet') AS $ele) {
             $imgList = $doc->getElementsByTagName($ele);
@@ -866,7 +868,8 @@ class Processor {
         }
 
 
-        /*$formList = $doc->getElementsByTagName('form');
+        /* TODO: form processing
+        $formList = $doc->getElementsByTagName('form');
         for ($i = 0; $i < $formList->length; $i++) {
             if ($formList->item($i)->hasAttribute('action')) {
                 if (!$formList->item($i)->hasAttribute('method') || strtolower($formList->item($i)->getAttribute('method')) === 'get') {
@@ -1044,9 +1047,6 @@ class Processor {
         }
 
         //$contents = preg_replace('/\/\*(.*?)\*\//is', '', $contents); // Removes comments.
-
-        //if (!$inline)
-        //    $contents = $this->hackFormatUrlAnywhere($contents);
 
         // Replace url() tags
         $contents = preg_replace_callback('/url\((\'|"|)(.+?)\\1\)/is', function($m) {
