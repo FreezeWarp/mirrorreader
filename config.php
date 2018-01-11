@@ -7,9 +7,8 @@
     'default' => array(
         'homeFiles' => [
             'index.html',
-            'index.shtml',
             'index.php',
-            'Main_Page',
+            'Main_Page', // Mediawiki
         ],
 
         'passthru' => false, // If enabled, when the script encounters a non-stored file, it will instead include the live one from the web -- say, PayPal and Twitter links.
@@ -131,7 +130,12 @@
     ),
 
     /* working 100% */
-    'www.serebii.net' => [],
+    'www.serebii.net' => [
+        'homeFiles' => [
+            'index.shtml',
+            'index.html',
+        ]
+    ],
 
     'www.victoryroad.net' => [
         'redirect' => [
@@ -139,7 +143,8 @@
         ],
     ],
 
-    'alicesoft.wikia.com' => [
+    // TODO: inherit subdomains
+    'wikia.com' => [
         'scriptHacks' => ['removeAll']
     ]
 );
