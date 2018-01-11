@@ -690,7 +690,7 @@ class Processor {
         }
 
         // The URL has passthru mode enabled; return the original path unaltered..
-        elseif (array_merge(@self::$domainConfiguration['default'], @self::$domainConfiguration[$urlParts['host']])['passthru'])
+        elseif (@array_merge(@self::$domainConfiguration['default'], @self::$domainConfiguration[$urlParts['host']])['passthru'])
             return $url;
 
         // Normal mode: append the URL to a the $_GET['url'] parameter of our script.
