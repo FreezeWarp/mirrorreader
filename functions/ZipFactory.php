@@ -7,9 +7,6 @@ class ZipFactory {
      */
     public static $processorCollection = [];
 
-    public static function registerShutdownFunction() {
-    }
-
     public static function get($file) : \ZipArchive {
         if (isset(self::$processorCollection[$file])) {
             return self::$processorCollection[$file];

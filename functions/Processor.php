@@ -103,7 +103,7 @@ class Processor {
      * @return string
      */
     public static function getLocalPath($path, $hash = '') {
-        return dirname(self::getScriptPath()) . '/' . $path . ($hash ? '#' . $hash : '');
+        return dirname(self::getScriptPath()) . '/index.php?url=' . urlencode($path) . ($hash ? '#' . $hash : '');
     }
 
     /**
@@ -507,10 +507,6 @@ class Processor {
         if ($this->error)
             throw new Exception('Cannot getContents() when an error has been triggered: ' . $this->error);
 
-        // Return cached copy, if possible.
-        if ($this->contents)
-            return $this->contents;
-
         $contents = self::getFileContents($this->getFileStore());
 
         // \xEF, \xBB, \xBF are byte-order markers; pretty rare, but can cause problems if not handled.
@@ -684,9 +680,8 @@ class Processor {
         $urlParts = parse_url($url);
 
         // A format URL callback exists; use it to return the formatted URL.
-        if (function_exists($this->formatUrlCallback)) {
-            $function = $this->formatUrlCallback;
-            return $function($url, $this->getFile());
+        if (is_callable($this->formatUrlCallback)) {
+            return ($this->formatUrlCallback)($url, $this->getFile());
         }
 
         // The URL has passthru mode enabled; return the original path unaltered..
